@@ -16,7 +16,7 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
   const signature = request.headers.get("stripe-signature");
   if (!signature) return new Response("missing signature", { status: 400 });
 
-  const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2024-11-20.acacia" });
+  const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" });
   const body = await request.text();
 
   let event: Stripe.Event;

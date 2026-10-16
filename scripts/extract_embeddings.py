@@ -19,14 +19,14 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "ml"))
 
-from cardia.config import HEART_TYPES  # noqa: E402
+from cardia.config import DEFAULT_MC_OUT, HEART_TYPES  # noqa: E402
 from cardia.features import embeddings as emb  # noqa: E402
 
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Extract audio CLS embeddings for LLM integration")
     p.add_argument("--data-dir", default="")
-    p.add_argument("--mc-out", default="/media/tnzr/AuxVolume/cardiasense-runs/mc")
+    p.add_argument("--mc-out", default=DEFAULT_MC_OUT)
     p.add_argument("--out-dir", default="runs/embeddings")
     p.add_argument("--device", default="cpu")
     args = p.parse_args(argv)

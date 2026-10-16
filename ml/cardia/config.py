@@ -6,19 +6,17 @@ import os
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     from dotenv import load_dotenv
 
-    _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     load_dotenv(os.path.join(_REPO, ".env"))
 except Exception:  # pragma: no cover - dotenv is optional
     pass
 
-DEFAULT_DATA_DIR = os.environ.get(
-    "ASCULTO_DATA_DIR",
-    "/media/tnzr/AuxVolume/datasets/HLS-CMDS Heart and Lung Sounds Dataset "
-    "Recorded from a Clinical Manikin using Digital Stethoscope",
-)
+DEFAULT_DATA_DIR = os.environ.get("ASCULTO_DATA_DIR", os.path.join(_REPO, "data", "HLS-CMDS"))
+# Multiclass (10/6-class Transformer) campaign output; defaults next to the binary runs.
+DEFAULT_MC_OUT = os.environ.get("ASCULTO_MC_OUT", os.path.join(_REPO, "ml", "runs"))
 
 TASKS = ("sound", "heart", "lung")
 STAGES = (1, 2, 3, 4)

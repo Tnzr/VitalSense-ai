@@ -331,7 +331,7 @@ space → those vectors are a ready-made, ordered interface for a downstream LLM
 import matplotlib.pyplot as plt
 from cardia.config import HEART_TYPES
 
-MC = "/media/tnzr/AuxVolume/cardiasense-runs/mc"   # multiclass campaign (Transformer heads)
+MC = str(ROOT / "ml" / "runs")   # multiclass campaign (Transformer heads)
 try:
     from cardia.features import embeddings as emb
     data = emb.corpus_embeddings(DATA, MC)

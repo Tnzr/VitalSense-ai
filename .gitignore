@@ -12,7 +12,7 @@ __pycache__/
 .env
 
 # Data (downloaded by setup.sh)
-data/
+/data/
 
 # Campaign / generated artifacts
 runs/
@@ -37,3 +37,6 @@ backend.hcl
 .terraform.lock.hcl
 # keep shared, secret-free env tfvars
 !infra/terraform/envs/*.tfvars
+
+# Node
+node_modules/

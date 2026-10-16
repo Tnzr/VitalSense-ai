@@ -13,7 +13,7 @@ from WandB, and writes:
 
 Usage:
   python -m cardia.report.demo \
-      --binary-out ml/runs --mc-out /media/tnzr/AuxVolume/cardiasense-runs/mc \
+      --binary-out ml/runs --mc-out ml/runs \
       --demo-dir demo
 """
 from __future__ import annotations
@@ -32,7 +32,7 @@ ML = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ML not in sys.path:
     sys.path.insert(0, ML)
 
-from cardia.config import Config, HEART_TYPES, LUNG_TYPES
+from cardia.config import DEFAULT_MC_OUT, Config, HEART_TYPES, LUNG_TYPES
 from cardia.data.hls_cmds import build_task_manifest, class_names
 from cardia.data.transforms import Augment, MelSpec, load_wav, peak_normalize
 from cardia.wandb_utils import viz
@@ -330,7 +330,7 @@ def build_slides(binary_out: str, mc_out: str, data_dir: str, demo_dir: str,
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Generate the CardiaSense demo PDF + PPTX")
     p.add_argument("--binary-out", default="runs", help="binary campaign out dir (metrics.json, checkpoints/)")
-    p.add_argument("--mc-out", default="/media/tnzr/AuxVolume/cardiasense-runs/mc", help="multiclass campaign out dir")
+    p.add_argument("--mc-out", default=DEFAULT_MC_OUT, help="multiclass campaign out dir")
     p.add_argument("--data-dir", default=Config().data_dir, help="HLS-CMDS dataset root")
     p.add_argument("--demo-dir", default="demo", help="output folder for pdf/pptx/figures/audio")
     p.add_argument("--curves", nargs="+", default=[

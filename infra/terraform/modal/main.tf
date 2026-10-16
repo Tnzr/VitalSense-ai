@@ -29,8 +29,8 @@ resource "null_resource" "modal_secret" {
 resource "null_resource" "modal_deploy" {
   depends_on = [null_resource.modal_secret]
   triggers = {
-    app     = var.app_file
-    deploy  = var.deploy_revision
+    app    = var.app_file
+    deploy = var.deploy_revision
   }
 
   provisioner "local-exec" {

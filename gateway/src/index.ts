@@ -98,9 +98,9 @@ async function parseJob(request: Request, env: Env): Promise<(Record<string, unk
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("multipart/form-data")) {
     const form = await request.formData();
-    const file = form.get("file");
+    const file = form.get("file") as unknown as File | string | null;
     const heads = String(form.get("heads") || "");
-    if (!(file instanceof File)) return null;
+    if (!file || typeof file === "string") return null;
     const buf = new Uint8Array(await file.arrayBuffer());
     let binary = "";
     for (const b of buf) binary += String.fromCharCode(b);
@@ -159,7 +159,7 @@ export default {
         await env.REPORTS.put(`reports/${msg.body.id}.json`, JSON.stringify(report), {
           httpMetadata: { contentType: "application/json" },
         });
-        await incrementUsage(env, String(msg.body.userId || "anon"), msg.body.count ?? 1);
+        await incrementUsage(env, String(msg.body.userId || "anon"), Number(msg.body.count ?? 1));
         msg.ack();
       } catch (err) {
         console.error("job failed", msg.body.id, err);
