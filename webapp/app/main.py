@@ -105,6 +105,10 @@ def _check_file_count(files: List[UploadFile]) -> None:
         raise HTTPException(status_code=413, detail=f"at most {MAX_FILES_PER_REQUEST} files per request")
 
 
+def _display_name(upload: UploadFile) -> str:
+    return os.path.basename((upload.filename or "").replace("\\", "/")) or "clip.wav"
+
+
 def _save_upload(upload: UploadFile) -> str:
     """Stream an upload to a temp file, rejecting anything over MAX_UPLOAD_BYTES."""
     suffix = os.path.splitext(os.path.basename(upload.filename or "clip.wav"))[1].lower()
@@ -189,11 +193,12 @@ async def analyze(
         try:
             path = _save_upload(up)
             rep = report.analyze_file(path, opts)
+            rep["filename"] = _display_name(up)
             rep["audio_uri"] = _audio_data_uri(path) if audio_playback and len(files) == 1 else None
             rep["size_bytes"] = os.path.getsize(path)
             results.append(rep)
         except Exception as e:  # pragma: no cover - user-facing error
-            results.append({"filename": up.filename, "error": f"{type(e).__name__}: {e}"})
+            results.append({"filename": _display_name(up), "error": f"{type(e).__name__}: {e}"})
         finally:
             if path:
                 try:
@@ -237,9 +242,10 @@ async def api_analyze(
         try:
             path = _save_upload(up)
             rep = report.analyze_file(path, opts)
+            rep["filename"] = _display_name(up)
             out.append(rep)
         except Exception as e:
-            out.append({"filename": up.filename, "error": f"{type(e).__name__}: {e}"})
+            out.append({"filename": _display_name(up), "error": f"{type(e).__name__}: {e}"})
         finally:
             if path:
                 try:

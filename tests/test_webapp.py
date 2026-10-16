@@ -56,3 +56,10 @@ def test_save_upload_sanitizes_suffix(monkeypatch):
     finally:
         import os
         os.remove(path)
+
+
+def test_results_keep_original_filename(client):
+    files = [("files", ("C:\\clips\\patient 7.wav", b"", "audio/wav"))]
+    r = client.post("/api/analyze", files=files)
+    assert r.status_code == 200
+    assert r.json()["results"][0]["filename"] == "patient 7.wav"
