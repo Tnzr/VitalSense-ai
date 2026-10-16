@@ -13,7 +13,7 @@ from WandB, and writes:
 
 Usage:
   python -m cardia.report.demo \
-      --binary-out ml/runs --mc-out ml/runs \
+      --binary-out ml/runs --mc-out ml/runs/mc \
       --demo-dir demo
 """
 from __future__ import annotations

@@ -112,7 +112,7 @@ the sweep under ~0.1 s on a mid NPU, with micro scale on demand.
 ```bash
 .venv/bin/python -m cardia.export.mobile \
   --binary-out ml/runs \
-  --mc-out ml/runs \
+  --mc-out ml/runs/mc \
   --out-dir ml/runs/export
 # writes mobile_analysis.json + mobile_analysis.md + onnx/{head}_{fp32,int8}.onnx
 ```
