@@ -29,7 +29,7 @@ resource "github_branch_protection" "main" {
   pattern       = "main"
 
   required_status_checks {
-    strict = true
+    strict   = true
     contexts = ["ci"]
   }
   required_pull_request_reviews {
@@ -40,8 +40,8 @@ resource "github_branch_protection" "main" {
 
 # CI/CD secrets (values supplied out-of-band; never in tfvars)
 resource "github_actions_secret" "cloudflare_api_token" {
-  repository  = github_repository.repo.name
-  secret_name = "CLOUDFLARE_API_TOKEN"
+  repository      = github_repository.repo.name
+  secret_name     = "CLOUDFLARE_API_TOKEN"
   plaintext_value = var.cloudflare_api_token
 }
 
