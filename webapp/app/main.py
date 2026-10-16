@@ -8,6 +8,7 @@ import base64
 import os
 import sys
 import tempfile
+from contextlib import asynccontextmanager
 from typing import List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -24,14 +25,15 @@ from . import llm as llm_mod  # noqa: E402
 from . import playback  # noqa: E402
 from .config import DISCLAIMER  # noqa: E402
 
-app = FastAPI(title="Asculto — Inference as a Service", version="0.1.0")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    inference.get_registry()  # warm-load checkpoint ensembles
+    yield
+
+
+app = FastAPI(title="Asculto — Inference as a Service", version="0.1.0", lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory=os.path.join(WEBAPP, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(WEBAPP, "templates"))
-
-
-@app.on_event("startup")
-def _startup() -> None:
-    inference.get_registry()  # warm-load checkpoint ensembles
 
 
 def _opts(heads: List[str], explanation: str, figures: str, disclaimer: bool, audio: bool,
@@ -61,11 +63,33 @@ def _opts(heads: List[str], explanation: str, figures: str, disclaimer: bool, au
     )
 
 
+MAX_UPLOAD_BYTES = int(os.environ.get("ASCULTO_MAX_UPLOAD_MB", "25")) * 1024 * 1024
+MAX_FILES_PER_REQUEST = int(os.environ.get("ASCULTO_MAX_FILES", "32"))
+_CHUNK = 1 << 20
+
+
+def _check_file_count(files: List[UploadFile]) -> None:
+    if len(files) > MAX_FILES_PER_REQUEST:
+        raise HTTPException(status_code=413, detail=f"at most {MAX_FILES_PER_REQUEST} files per request")
+
+
 def _save_upload(upload: UploadFile) -> str:
-    suffix = os.path.splitext(upload.filename or "clip.wav")[1] or ".wav"
+    """Stream an upload to a temp file, rejecting anything over MAX_UPLOAD_BYTES."""
+    suffix = os.path.splitext(os.path.basename(upload.filename or "clip.wav"))[1].lower()
+    if not suffix or len(suffix) > 6 or not suffix[1:].isalnum():
+        suffix = ".wav"
     fd, path = tempfile.mkstemp(suffix=suffix)
-    with os.fdopen(fd, "wb") as f:
-        f.write(upload.file.read())
+    written = 0
+    try:
+        with os.fdopen(fd, "wb") as f:
+            while chunk := upload.file.read(_CHUNK):
+                written += len(chunk)
+                if written > MAX_UPLOAD_BYTES:
+                    raise ValueError(f"file exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)} MB upload limit")
+                f.write(chunk)
+    except BaseException:
+        os.remove(path)
+        raise
     return path
 
 
@@ -124,12 +148,14 @@ async def analyze(
     patient_context: str = Form(""),
     ai_narrative: bool = Form(True),
 ):
+    _check_file_count(files)
     opts = _opts(heads, explanation, figures, include_disclaimer, audio_playback, temporal, window_s, hop_s,
                  temporal_mode, scales, patient_context, ai_narrative)
     results = []
     for up in files:
-        path = _save_upload(up)
+        path = None
         try:
+            path = _save_upload(up)
             rep = report.analyze_file(path, opts)
             rep["audio_uri"] = _audio_data_uri(path) if audio_playback and len(files) == 1 else None
             rep["size_bytes"] = os.path.getsize(path)
@@ -137,10 +163,11 @@ async def analyze(
         except Exception as e:  # pragma: no cover - user-facing error
             results.append({"filename": up.filename, "error": f"{type(e).__name__}: {e}"})
         finally:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
+            if path:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
 
     if len(results) == 1:
         return templates.TemplateResponse(request, "report.html", {
@@ -169,21 +196,24 @@ async def api_analyze(
     ai_narrative: bool = Form(True),
 ):
     """Programmatic Inference-as-a-Service endpoint (JSON)."""
+    _check_file_count(files)
     opts = _opts([h for h in heads.split(",") if h], explanation, figures, True, False,
                  temporal, window_s, hop_s, temporal_mode, scales, patient_context, ai_narrative)
     out = []
     for up in files:
-        path = _save_upload(up)
+        path = None
         try:
+            path = _save_upload(up)
             rep = report.analyze_file(path, opts)
             out.append(rep)
         except Exception as e:
             out.append({"filename": up.filename, "error": f"{type(e).__name__}: {e}"})
         finally:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
+            if path:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
     return JSONResponse({"count": len(out), "results": out})
 
 

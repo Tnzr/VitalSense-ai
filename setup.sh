@@ -44,7 +44,7 @@ if [ ! -x "$PY" ]; then
   uv venv .venv --python 3.11
 fi
 echo "[setup] installing dependencies..."
-uv pip install --python "$PY" -r ml/requirements.txt -r webapp/requirements.txt
+uv pip install --python "$PY" -r ml/requirements.txt -r webapp/requirements.txt -r requirements-dev.txt
 [ -f notebooks/requirements.txt ] && uv pip install --python "$PY" -r notebooks/requirements.txt || true
 
 echo "[setup] registering the Jupyter kernel..."

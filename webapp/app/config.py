@@ -15,13 +15,9 @@ try:
 except Exception:  # pragma: no cover - dotenv is optional
     pass
 
-DATA_DIR = os.environ.get(
-    "ASCULTO_DATA_DIR",
-    "/media/tnzr/AuxVolume/datasets/HLS-CMDS Heart and Lung Sounds Dataset "
-    "Recorded from a Clinical Manikin using Digital Stethoscope",
-)
+DATA_DIR = os.environ.get("ASCULTO_DATA_DIR", os.path.join(REPO, "data", "HLS-CMDS"))
 BINARY_OUT = os.environ.get("ASCULTO_BINARY_OUT", os.path.join(ML, "runs"))
-MC_OUT = os.environ.get("ASCULTO_MC_OUT", "/media/tnzr/AuxVolume/cardiasense-runs/mc")
+MC_OUT = os.environ.get("ASCULTO_MC_OUT", BINARY_OUT)
 DEVICE = os.environ.get("ASCULTO_DEVICE", "cpu")  # PoC default CPU; set "cuda" for GPU
 SEED = int(os.environ.get("ASCULTO_SEED", "0"))
 

@@ -99,10 +99,10 @@ system players); raw versions are in `docs/assets/audio/` too.
 
 | clip | playback |
 |---|---|
-| **Heart — normal** | <audio controls preload="none" src="https://raw.githubusercontent.com/Tnzr/FisioSense-ai/main/docs/assets/audio/heart_normal_filtered.wav"></audio> |
-| **Heart — abnormal** (atrial fibrillation) | <audio controls preload="none" src="https://raw.githubusercontent.com/Tnzr/FisioSense-ai/main/docs/assets/audio/heart_abnormal_filtered.wav"></audio> |
-| **Lung — normal** | <audio controls preload="none" src="https://raw.githubusercontent.com/Tnzr/FisioSense-ai/main/docs/assets/audio/lung_normal_filtered.wav"></audio> |
-| **Lung — wheeze** | <audio controls preload="none" src="https://raw.githubusercontent.com/Tnzr/FisioSense-ai/main/docs/assets/audio/lung_wheeze_filtered.wav"></audio> |
+| **Heart — normal** | <audio controls preload="none" src="https://raw.githubusercontent.com/Tnzr/VitalSense-ai/main/docs/assets/audio/heart_normal_filtered.wav"></audio> |
+| **Heart — abnormal** (atrial fibrillation) | <audio controls preload="none" src="https://raw.githubusercontent.com/Tnzr/VitalSense-ai/main/docs/assets/audio/heart_abnormal_filtered.wav"></audio> |
+| **Lung — normal** | <audio controls preload="none" src="https://raw.githubusercontent.com/Tnzr/VitalSense-ai/main/docs/assets/audio/lung_normal_filtered.wav"></audio> |
+| **Lung — wheeze** | <audio controls preload="none" src="https://raw.githubusercontent.com/Tnzr/VitalSense-ai/main/docs/assets/audio/lung_wheeze_filtered.wav"></audio> |
 
 ---
 
@@ -154,8 +154,8 @@ Ollama) with `ASCULTO_LLM_*` env vars. See
 ## Quick start
 
 ```bash
-git clone git@github.com:Tnzr/cardiasense-ai.git
-cd cardiasense-ai
+git clone git@github.com:Tnzr/VitalSense-ai.git
+cd VitalSense-ai
 ./setup.sh          # venv + deps + downloads HLS-CMDS (37.8 MB) from Zenodo if absent
 ```
 
@@ -164,6 +164,9 @@ its Zenodo source if needed, writes `.env` (`ASCULTO_DATA_DIR`), and
 **verifies the manifests** (`sound=535 heart=195 lung=195`).
 
 ```bash
+# Tests (manifests, leakage-safe splits, DSP, web API)
+.venv/bin/python -m pytest -q tests
+
 # Web app
 .venv/bin/python -m uvicorn webapp.app.main:app --port 8010     # http://localhost:8010
 

@@ -25,7 +25,7 @@ ML = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ML not in sys.path:
     sys.path.insert(0, ML)
 
-from cardia.config import Config, HEART_TYPES, LUNG_TYPES  # noqa: E402
+from cardia.config import DEFAULT_MC_OUT, Config, HEART_TYPES, LUNG_TYPES  # noqa: E402
 from cardia.models.cnn import build_cnn  # noqa: E402
 from cardia.models.temporal import build_temporal  # noqa: E402
 from cardia.models.transformer import build_transformer  # noqa: E402
@@ -184,7 +184,7 @@ def _write_markdown(out: dict, path: str) -> None:
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Export + quantize heads and measure mobile profile")
     p.add_argument("--binary-out", default=os.path.join(ML, "runs"))
-    p.add_argument("--mc-out", default="/media/tnzr/AuxVolume/cardiasense-runs/mc")
+    p.add_argument("--mc-out", default=DEFAULT_MC_OUT)
     p.add_argument("--out-dir", default=os.path.join(ML, "runs", "export"))
     args = p.parse_args(argv)
     out = run(args.binary_out, args.mc_out, args.out_dir)

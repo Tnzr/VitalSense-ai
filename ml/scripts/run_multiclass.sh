@@ -2,14 +2,14 @@
 # Multiclass benchmark: heart sound types (10-class) and lung sound types
 # (6-class), then the combined heart+lung confusion report.
 #
-# Output defaults to the AuxVolume drive to keep /home free.
+# Output defaults to ml/runs (where the web app looks for checkpoints).
 #   OUT=/path/to/out EPOCHS=120 PATIENCE=20 ./run_multiclass.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PY="$ROOT/.venv/bin/python"
 ML="$ROOT/ml"
-OUT="${OUT:-/media/tnzr/AuxVolume/cardiasense-runs/mc}"
+OUT="${OUT:-$ML/runs}"
 EXTRA=()
 [ -n "${EPOCHS:-}" ] && EXTRA+=(--epochs "$EPOCHS")
 [ -n "${PATIENCE:-}" ] && EXTRA+=(--patience "$PATIENCE")

@@ -7,7 +7,7 @@ the campaign outputs so the prose stays accurate.
 
 Usage:
   python -m cardia.report.report \
-      --binary-out runs --mc-out /media/tnzr/AuxVolume/cardiasense-runs/mc \
+      --binary-out runs --mc-out ml/runs \
       --out-dir report
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ REPO = os.path.dirname(ML)
 if ML not in sys.path:
     sys.path.insert(0, ML)
 
-from cardia.config import Config, HEART_TYPES, LUNG_TYPES
+from cardia.config import DEFAULT_MC_OUT, Config, HEART_TYPES, LUNG_TYPES
 from cardia.data.hls_cmds import build_task_manifest, class_names
 from cardia.report import demo, infer
 from cardia.wandb_utils import viz
@@ -594,7 +594,7 @@ def render_pptx(pages: List[dict], audio_dir: str, path: str) -> None:
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Generate the comprehensive CardiaSense report (PDF + PPTX)")
     p.add_argument("--binary-out", default="runs")
-    p.add_argument("--mc-out", default="/media/tnzr/AuxVolume/cardiasense-runs/mc")
+    p.add_argument("--mc-out", default=DEFAULT_MC_OUT)
     p.add_argument("--data-dir", default=Config().data_dir)
     p.add_argument("--out-dir", default="report")
     args = p.parse_args(argv)
