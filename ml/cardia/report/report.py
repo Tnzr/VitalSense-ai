@@ -7,7 +7,7 @@ the campaign outputs so the prose stays accurate.
 
 Usage:
   python -m cardia.report.report \
-      --binary-out runs --mc-out ml/runs \
+      --binary-out runs --mc-out ml/runs/mc \
       --out-dir report
 """
 from __future__ import annotations

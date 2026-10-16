@@ -38,7 +38,7 @@ Environment overrides:
 | `ASCULTO_DEVICE` | `cpu` | `cuda` for GPU inference |
 | `ASCULTO_DATA_DIR` | `data/HLS-CMDS` | dataset root (game + demo) |
 | `ASCULTO_BINARY_OUT` | `ml/runs` | binary campaign checkpoints |
-| `ASCULTO_MC_OUT` | `ml/runs` (same as binary) | multiclass checkpoints |
+| `ASCULTO_MC_OUT` | `ml/runs/mc` | multiclass checkpoints |
 | `ASCULTO_LLM_API_KEY` | *(unset)* | enables the OpenAI-compatible LLM narrative |
 | `ASCULTO_LLM_BASE_URL` | `https://api.openai.com/v1` | any compatible endpooint (e.g. local Ollama) |
 | `ASCULTO_LLM_MODEL` | `gpt-4o-mini` | LLM model name |

@@ -17,7 +17,7 @@ except Exception:  # pragma: no cover - dotenv is optional
 
 DATA_DIR = os.environ.get("ASCULTO_DATA_DIR", os.path.join(REPO, "data", "HLS-CMDS"))
 BINARY_OUT = os.environ.get("ASCULTO_BINARY_OUT", os.path.join(ML, "runs"))
-MC_OUT = os.environ.get("ASCULTO_MC_OUT", BINARY_OUT)
+MC_OUT = os.environ.get("ASCULTO_MC_OUT", os.path.join(REPO, "ml", "runs", "mc"))
 DEVICE = os.environ.get("ASCULTO_DEVICE", "cpu")  # PoC default CPU; set "cuda" for GPU
 SEED = int(os.environ.get("ASCULTO_SEED", "0"))
 

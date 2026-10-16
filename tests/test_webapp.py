@@ -33,6 +33,12 @@ def test_upload_size_limit(client, monkeypatch):
     assert "upload limit" in res["error"]
 
 
+def test_request_size_limit_rejects_before_parsing(client, monkeypatch):
+    monkeypatch.setattr(main, "MAX_REQUEST_BYTES", 1024)
+    files = [("files", ("big.wav", io.BytesIO(b"\0" * 4096), "audio/wav"))]
+    assert client.post("/api/analyze", files=files).status_code == 413
+
+
 def test_file_count_limit(client, monkeypatch):
     monkeypatch.setattr(main, "MAX_FILES_PER_REQUEST", 1)
     files = [("files", (f"c{i}.wav", io.BytesIO(b"RIFF"), "audio/wav")) for i in range(2)]

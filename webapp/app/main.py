@@ -25,13 +25,48 @@ from . import llm as llm_mod  # noqa: E402
 from . import playback  # noqa: E402
 from .config import DISCLAIMER  # noqa: E402
 
+MAX_UPLOAD_BYTES = int(os.environ.get("ASCULTO_MAX_UPLOAD_MB", "25")) * 1024 * 1024
+MAX_FILES_PER_REQUEST = int(os.environ.get("ASCULTO_MAX_FILES", "32"))
+MAX_REQUEST_BYTES = int(os.environ.get("ASCULTO_MAX_REQUEST_MB", "100")) * 1024 * 1024
+_CHUNK = 1 << 20
+
+
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
     inference.get_registry()  # warm-load checkpoint ensembles
     yield
 
 
+class _RequestSizeLimit:
+    """Reject oversized bodies before multipart parsing spools them to disk."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        limit = globals()["MAX_REQUEST_BYTES"]
+        length = dict(scope["headers"]).get(b"content-length")
+        if length is not None and length.isdigit() and int(length) > limit:
+            resp = JSONResponse({"detail": f"request body exceeds {limit // (1024 * 1024)} MB"}, status_code=413)
+            return await resp(scope, receive, send)
+        received = 0
+
+        async def limited_receive():
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    raise HTTPException(status_code=413, detail="request body too large")
+            return message
+
+        await self.app(scope, limited_receive, send)
+
+
 app = FastAPI(title="Asculto — Inference as a Service", version="0.1.0", lifespan=_lifespan)
+app.add_middleware(_RequestSizeLimit)
 app.mount("/static", StaticFiles(directory=os.path.join(WEBAPP, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(WEBAPP, "templates"))
 
@@ -63,9 +98,6 @@ def _opts(heads: List[str], explanation: str, figures: str, disclaimer: bool, au
     )
 
 
-MAX_UPLOAD_BYTES = int(os.environ.get("ASCULTO_MAX_UPLOAD_MB", "25")) * 1024 * 1024
-MAX_FILES_PER_REQUEST = int(os.environ.get("ASCULTO_MAX_FILES", "32"))
-_CHUNK = 1 << 20
 
 
 def _check_file_count(files: List[UploadFile]) -> None:
