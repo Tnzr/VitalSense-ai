@@ -56,7 +56,7 @@ def _quality(wav: torch.Tensor, sr: int) -> Dict:
 
 
 def _narrative_for(head_key: str, pred: str, explanation: str) -> List[str]:
-    finding, awareness = config.KNOWLEDGE.get(pred, ("", ""))
+    finding, awareness = config.knowledge_for(head_key, pred)
     lines = []
     if finding:
         lines.append(finding)
@@ -93,9 +93,9 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
         if head is None or not head.ready:
             continue
         out = head.predict(wav, sr)
-        report["heads"].append({k: out[k] for k in
-                                ("key", "label", "kind", "classes", "probs", "probs_std", "pred", "confidence",
-                                 "n_models")})
+        row = {k: out[k] for k in ("key", "label", "kind", "classes", "probs", "pred", "confidence", "n_models")}
+        row["probs_std"] = out.get("probs_std")  # fold spread; not available from the ONNX backend
+        report["heads"].append(row)
         report.setdefault("_filtered", {})[key] = out["filtered"]
 
     report["viz"] = analysis.viz_payload(wav, sr)
@@ -108,18 +108,22 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
     # processing figure base: prefer source routing band, else first head
     primary = report["heads"][0]
     filt = report["_filtered"].get(primary["key"])
+    fs = reg.get(primary["key"]).cfg.sample_rate  # rate of the model-filtered signal
     raw_np = wav.numpy()
 
     if options.figures != "none":
+        import torchaudio
         from cardia.wandb_utils import viz
 
         report["figures"]["waveform"] = fig_to_data_uri(
             viz.waveform_fig(raw_np, sr, "Input — raw waveform"))
+        raw_fs = (torchaudio.functional.resample(wav, sr, fs) if sr != fs else wav).numpy()
+        n = min(raw_fs.shape[-1], filt.shape[-1])
         report["figures"]["overlay"] = fig_to_data_uri(
-            viz.overlay_fig(raw_np, filt.numpy(), sr, "Processing — raw vs band-passed"))
+            viz.overlay_fig(raw_fs[:n], filt.numpy()[:n], fs, "Processing — raw vs band-passed"))
         from cardia.data.transforms import MelSpec
 
-        mel = MelSpec(sr, 64, 400, 160)
+        mel = MelSpec(fs, 64, 400, 160)
         spec = mel(filt).numpy()
         report["figures"]["spectrogram"] = fig_to_data_uri(
             viz.spec_fig(spec, "Processing — log-mel spectrogram"))
@@ -133,7 +137,7 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
         from cardia.data.transforms import MelSpec
         from cardia.wandb_utils import viz
 
-        mel = MelSpec(sr, 64, 400, 160)
+        mel = MelSpec(fs, 64, 400, 160)
         duration = float(wav.shape[0]) / sr
         report["series"] = {}
         report["temporal"] = {"window_s": options.window_s, "hop_s": options.hop_s,
@@ -195,9 +199,18 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
         for line in _narrative_for(h["key"], h["pred"], options.explanation):
             report["narrative"].append(line)
 
-    # overall summary
-    abnormal = [h for h in report["heads"]
-                if h["kind"] == "binary" and h["pred"] == "abnormal"]
+    # overall summary: only screens in the routed domain decide the verdict (mixed/unknown → both)
+    route = source["pred"] if source else None
+    order = ["lung_types", "lung_binary", "heart_types", "heart_binary"] if route == "lung" else \
+        ["heart_types", "heart_binary", "lung_types", "lung_binary"]
+    routed = {"heart": {"heart_types", "heart_binary"}, "lung": {"lung_types", "lung_binary"}}.get(route, set(order))
+    flagged = [h for h in report["heads"] if h["kind"] == "binary" and h["pred"] == "abnormal"]
+    abnormal = [h for h in flagged if h["key"] in routed]
+    for h in flagged:
+        if h["key"] not in routed:
+            report["narrative"].append(
+                f"Reference only: {h['label']} flagged abnormal, but this clip was routed to {route}, so that "
+                "screen is outside its sound domain and does not affect the summary.")
     if abnormal:
         report["verdict"] = "abnormal-flag"
         report["narrative"].insert(0, "Summary: at least one screening head flagged a possible abnormality. "
@@ -207,15 +220,11 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
         report["narrative"].insert(0, "Summary: no screening head flagged an abnormality. This does not rule "
                                       "out disease.")
 
-    route = source["pred"] if source else None
-    order = ["lung_types", "lung_binary", "heart_types", "heart_binary"] if route == "lung" else \
-        ["heart_types", "heart_binary", "lung_types", "lung_binary"]
-    routed = {"heart": {"heart_types", "heart_binary"}, "lung": {"lung_types", "lung_binary"}}.get(route, set(order))
     present = {h["key"] for h in report["heads"]}
     report["route"] = route
     report["panels"] = [{"key": k, "routed": k in routed} for k in order if k in present]
-    report["knowledge"] = {c: config.KNOWLEDGE[c] for h in report["heads"] for c in h["classes"]
-                           if c in config.KNOWLEDGE}
+    report["knowledge"] = {f"{h['key']}:{c}": k for h in report["heads"] for c in h["classes"]
+                           if any(k := config.knowledge_for(h["key"], c))}
     report["quant"] = analysis.quantify(wav, sr, route, report["heads"], report.get("series"))
 
     # AI personalized narrative (LLM when configured, else offline synthesizer)

@@ -74,7 +74,7 @@ def tiles(per_class: int = 3) -> List[Dict]:
                 "sample_ids": [str(s) for s in sub["sample_id"].head(per_class)],
                 "listen": listen,
                 "look": look,
-                "finding": config.KNOWLEDGE.get(label, ("", ""))[1] if label != "Normal" else "",
+                "finding": config.knowledge_for(key, label)[1],
             })
         out.append({"key": key, "title": title, "task": task, "scheme": scheme, "tiles": rows})
     return out

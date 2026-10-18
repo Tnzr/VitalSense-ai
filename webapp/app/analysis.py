@@ -18,6 +18,7 @@ _MEL_NFFT = 256
 _MEL_HOP = 80  # 20 ms at 4 kHz
 _DB_RANGE = 80.0
 _WAVE_POINTS = 1200
+MAX_SECONDS = 120  # explorer + quantified metrics cover at most the first 2 minutes
 
 BANDS = [
     (20, 150, "Low 20–150 Hz", "S1/S2, S3/S4 gallops, low rumbles"),
@@ -31,7 +32,7 @@ def to_viz_rate(wav: torch.Tensor, sr: int) -> np.ndarray:
     """Mono float64 at VIZ_SR, DC-removed and peak-normalized."""
     import torchaudio
 
-    w = wav.detach().float().reshape(-1)
+    w = wav.detach().float().reshape(-1)[:int(MAX_SECONDS * sr)]
     if sr != VIZ_SR:
         w = torchaudio.functional.resample(w, sr, VIZ_SR)
     y = w.numpy().astype(np.float64)
@@ -105,7 +106,9 @@ def _periodicity(env: np.ndarray, env_sr: int, min_rate: float, max_rate: float)
     """Autocorrelation rate estimate (cycles/min) and its normalized peak strength."""
     if env.size < 4 or not np.any(env):
         return None, 0.0
-    ac = np.correlate(env, env, mode="full")[env.size - 1:]
+    nfft = 1 << int(2 * env.size - 1).bit_length()
+    spec = np.fft.rfft(env, nfft)
+    ac = np.fft.irfft(spec * np.conj(spec), nfft)[:env.size]  # O(n log n) autocorrelation
     ac = ac / (ac[0] + 1e-12)
     lag_lo = max(int(env_sr * 60.0 / max_rate), 1)
     lag_hi = min(int(env_sr * 60.0 / min_rate), ac.size - 1)

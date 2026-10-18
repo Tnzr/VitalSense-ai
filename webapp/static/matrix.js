@@ -26,8 +26,9 @@
     const oldC = tile.querySelector("canvas"), c = oldC.cloneNode();
     oldC.replaceWith(c);
     tile.querySelectorAll(".tile-samples .btn").forEach((b) => b.classList.toggle("on", +b.dataset.idx === idx));
+    if (tile._mel) { tile._mel.dispose(); tile._mel = null; }
     const viz = await getMel(tile, sid);
-    if (viz) V.MiniMel(c, viz, a, 5);
+    if (viz && tile.dataset.current === sid) tile._mel = V.MiniMel(c, viz, a, 5);
     renderCompare();
   }
 
@@ -47,7 +48,10 @@
     t.querySelector(".tile-label").addEventListener("click", () => t.classList.toggle("revealed"));
   });
 
+  let compareMels = [];
   async function renderCompare() {
+    compareMels.forEach((m) => m.dispose());
+    compareMels = [];
     const box = document.getElementById("compare"), row = document.getElementById("compare-row");
     const sel = tiles.filter((x) => x.querySelector(".cmp:checked"));
     box.hidden = !sel.length;
@@ -56,12 +60,15 @@
       const ids = JSON.parse(t.dataset.samples), sid = t.dataset.current || ids[0];
       const col = document.createElement("div");
       col.className = "compare-col";
-      col.innerHTML = `<h3 class="tile-label">${t.dataset.label}</h3><canvas class="mini-mel big"></canvas>
-        <audio controls src="${audioUrl(t, sid)}"></audio>`;
+      const h = document.createElement("h3"), c = document.createElement("canvas"), a = document.createElement("audio");
+      h.className = "tile-label"; h.textContent = t.dataset.label;
+      c.className = "mini-mel big";
+      a.controls = true; a.src = audioUrl(t, sid);
+      col.append(h, c, a);
       if (t.classList.contains("revealed")) col.classList.add("revealed");
       row.appendChild(col);
       const viz = await getMel(t, sid);
-      if (viz) V.MiniMel(col.querySelector("canvas"), viz, col.querySelector("audio"), 5);
+      if (viz && col.isConnected) compareMels.push(V.MiniMel(c, viz, a, 5));
     }
   }
 

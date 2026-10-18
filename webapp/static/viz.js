@@ -287,19 +287,29 @@
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
       }
     };
+    let raf = null;
+    const loop = () => { draw(); raf = audio.paused ? null : requestAnimationFrame(loop); };
+    const kick = () => { if (!raf) loop(); };
+    const seek = (e) => {
+      const [t0] = page();
+      audio.currentTime = t0 + (e.offsetX / canvas.clientWidth) * win;
+      if (audio.paused) audio.play();
+    };
+    const evs = ["play", "seeked", "timeupdate"];
     if (audio) {
-      let raf = null;
-      const loop = () => { draw(); raf = audio.paused ? null : requestAnimationFrame(loop); };
-      ["play", "seeked", "timeupdate"].forEach((ev) => audio.addEventListener(ev, () => { if (!raf) loop(); }));
-      canvas.addEventListener("click", (e) => {
-        const [t0] = page();
-        audio.currentTime = t0 + (e.offsetX / canvas.clientWidth) * win;
-        if (audio.paused) audio.play();
-      });
+      evs.forEach((ev) => audio.addEventListener(ev, kick));
+      canvas.addEventListener("click", seek);
     }
     global.addEventListener("resize", draw);
     draw();
-    return { redraw: draw };
+    return {
+      redraw: draw,
+      dispose() {
+        global.removeEventListener("resize", draw);
+        if (raf) cancelAnimationFrame(raf);
+        if (audio) { evs.forEach((ev) => audio.removeEventListener(ev, kick)); canvas.removeEventListener("click", seek); }
+      },
+    };
   }
 
   global.AscultoViz = { SignalExplorer, MiniMel, PALETTE };

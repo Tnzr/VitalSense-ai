@@ -56,7 +56,7 @@
           <span class="muted small">${h.n_models} fold models</span></div>
         <ol class="bars">${order.map((i) => {
           const lo = Math.max(h.probs[i] - std[i], 0), hi = Math.min(h.probs[i] + std[i], 1);
-          const k = data.knowledge[h.classes[i]];
+          const k = data.knowledge[h.key + ":" + h.classes[i]];
           return `<li data-cls="${esc(h.classes[i])}" title="${esc(k ? k[0] : "")}" class="${i === top ? "top" : ""}">
             <span class="bar-label">${esc(h.classes[i])}</span>
             <span class="bar-track"><span class="bar-fill" style="width:${h.probs[i] * 100}%"></span>
@@ -68,7 +68,7 @@
       const detail = div.querySelector(".panel-detail");
       div.querySelectorAll(".bars li").forEach((li) => li.addEventListener("click", () => {
         div.querySelectorAll(".bars li").forEach((o) => o.classList.toggle("sel", o === li));
-        const c = li.dataset.cls, k = data.knowledge[c];
+        const c = li.dataset.cls, k = data.knowledge[h.key + ":" + c];
         const typing = h.kind === "multiclass";
         const slug = (p.key + "-" + c).toLowerCase().replace(/[^a-z0-9]+/g, "-");
         detail.innerHTML = `<b>${esc(c)}</b> — ${k ? esc(k[1] || k[0]) :

@@ -47,3 +47,22 @@ def test_certainty_rows_use_fold_spread_and_series():
     assert _value(q, "Heart typing") == 70.0
     note = [r for s in q["sections"] for r in s["rows"] if r["metric"] == "Heart typing"][0]["note"]
     assert "± 10.0% across 5 folds" in note and "margin 0.50" in note and "50% of windows agree" in note
+
+
+def test_periodicity_long_envelope_is_fast():
+    import time
+
+    env_sr = 50
+    t = np.arange(30 * 60 * env_sr) / env_sr  # 30-minute envelope, 90k points
+    env = np.cos(2 * np.pi * (72 / 60) * t)
+    t0 = time.perf_counter()
+    rate, strength = analysis._periodicity(env, env_sr, 40, 200)
+    assert time.perf_counter() - t0 < 2.0
+    assert abs(rate - 72) < 2 and strength > 0.9
+
+
+def test_lung_normal_has_lung_description():
+    from webapp.app import config
+
+    assert "breath" in config.knowledge_for("lung_types", "Normal")[1]
+    assert "S1" in config.knowledge_for("heart_types", "Normal")[1]
