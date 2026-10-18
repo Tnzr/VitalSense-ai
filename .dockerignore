@@ -15,3 +15,8 @@ docs
 *.pt
 *.onnx
 *.wav
+.env
+.env.*
+!.env.example
+**/node_modules
+.pytest_cache
