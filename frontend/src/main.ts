@@ -33,6 +33,12 @@ interface Report {
 
 const token = localStorage.getItem("asculto_api_key") || "";
 
+const VERDICT_PILL: Record<string, string> = { "abnormal-flag": "pill-bad", "reference-flag": "pill-warn" };
+const VERDICT_LABEL: Record<string, string> = {
+  "abnormal-flag": "abnormality flagged",
+  "reference-flag": "reference-only screen flagged",
+};
+
 function authHeaders(): HeadersInit {
   return token ? { authorization: `Bearer ${token}` } : {};
 }
@@ -86,8 +92,8 @@ function render(rep: Report): void {
   el.innerHTML = `
     <section class="report-head">
       <h1>Report — ${esc(rep.filename)}</h1>
-      <span class="pill ${rep.verdict === "abnormal-flag" ? "pill-bad" : "pill-ok"}">
-        ${rep.verdict === "abnormal-flag" ? "abnormality flagged" : "no abnormality flagged"}</span>
+      <span class="pill ${VERDICT_PILL[rep.verdict ?? ""] ?? "pill-ok"}">
+        ${VERDICT_LABEL[rep.verdict ?? ""] ?? "no abnormality flagged"}</span>
     </section>
     ${rep.quality?.flags?.length ? `<div class="card warn"><strong>Quality:</strong> ${esc(rep.quality.flags.join("; "))}</div>` : ""}
     <div class="card"><h2>Summary</h2><ul class="narrative">${narrative}</ul></div>

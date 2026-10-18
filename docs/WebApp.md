@@ -194,10 +194,12 @@ multi-scale typing run natively. Compute implications are quantified in
 | GET | `/` | landing page (upload + tabs) |
 | GET | `/game` | game page |
 | POST | `/analyze` | single/batch upload → report page (HTML) |
-| POST | `/api/analyze` | JSON inference (programmatic / IaaS) |
+| POST | `/api/analyze` | JSON inference (programmatic / IaaS); includes `viz` (log-mel/waveform), `quant` (quantified metrics), `panels`, per-head `probs_std` |
 | GET | `/api/game/round` | next game round (JSON) |
 | POST | `/api/game/answer` | grade an answer (JSON) |
 | GET | `/game/audio/{sample_id}` | stream a dataset clip for the game |
+| GET | `/matrix` | sound matrix: one educational tile per heart/lung type |
+| GET | `/api/matrix/mel/{sample_id}` | log-mel + waveform payload for a dataset clip (JSON) |
 | GET | `/health` | service + loaded-model status |
 | GET | `/static/*` | css/js |
 

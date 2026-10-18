@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 
-from . import config
+from . import analysis, config
 from . import llm as llm_mod
 from .inference import fig_to_data_uri, get_registry, head_prob_fig
 
@@ -37,6 +37,9 @@ def _quality(wav: torch.Tensor, sr: int) -> Dict:
     rms = float(np.sqrt(np.mean(y ** 2)))
     clip_ratio = float(np.mean(np.abs(y) > 0.99))
     flags = []
+    if sr > 8000:
+        flags.append(f"recorded at {sr} Hz (phone/computer mic?) — models were trained on 4 kHz digital-stethoscope "
+                     "clips, so expect lower reliability")
     if duration < 5:
         flags.append("short recording (<5 s) — results may be unreliable")
     if clip_ratio > 0.001:
@@ -53,7 +56,7 @@ def _quality(wav: torch.Tensor, sr: int) -> Dict:
 
 
 def _narrative_for(head_key: str, pred: str, explanation: str) -> List[str]:
-    finding, awareness = config.KNOWLEDGE.get(pred, ("", ""))
+    finding, awareness = config.knowledge_for(head_key, pred)
     lines = []
     if finding:
         lines.append(finding)
@@ -90,11 +93,14 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
         if head is None or not head.ready:
             continue
         out = head.predict(wav, sr)
-        report["heads"].append({k: out[k] for k in
-                                ("key", "label", "kind", "classes", "probs", "pred", "confidence", "n_models")})
+        row = {k: out[k] for k in ("key", "label", "kind", "classes", "probs", "pred", "confidence", "n_models")}
+        row["probs_std"] = out.get("probs_std")  # fold spread; not available from the ONNX backend
+        report["heads"].append(row)
         report.setdefault("_filtered", {})[key] = out["filtered"]
 
+    report["viz"] = analysis.viz_payload(wav, sr)
     if not report["heads"]:
+        report["quant"] = analysis.quantify(wav, sr)
         report["narrative"].append(
             "No prediction heads were available. Ensure model checkpoints exist and the service loaded them.")
         return report
@@ -102,18 +108,22 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
     # processing figure base: prefer source routing band, else first head
     primary = report["heads"][0]
     filt = report["_filtered"].get(primary["key"])
+    fs = reg.get(primary["key"]).cfg.sample_rate  # rate of the model-filtered signal
     raw_np = wav.numpy()
 
     if options.figures != "none":
+        import torchaudio
         from cardia.wandb_utils import viz
 
         report["figures"]["waveform"] = fig_to_data_uri(
             viz.waveform_fig(raw_np, sr, "Input — raw waveform"))
+        raw_fs = (torchaudio.functional.resample(wav, sr, fs) if sr != fs else wav).numpy()
+        n = min(raw_fs.shape[-1], filt.shape[-1])
         report["figures"]["overlay"] = fig_to_data_uri(
-            viz.overlay_fig(raw_np, filt.numpy(), sr, "Processing — raw vs band-passed"))
+            viz.overlay_fig(raw_fs[:n], filt.numpy()[:n], fs, "Processing — raw vs band-passed"))
         from cardia.data.transforms import MelSpec
 
-        mel = MelSpec(sr, 64, 400, 160)
+        mel = MelSpec(fs, 64, 400, 160)
         spec = mel(filt).numpy()
         report["figures"]["spectrogram"] = fig_to_data_uri(
             viz.spec_fig(spec, "Processing — log-mel spectrogram"))
@@ -127,7 +137,7 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
         from cardia.data.transforms import MelSpec
         from cardia.wandb_utils import viz
 
-        mel = MelSpec(sr, 64, 400, 160)
+        mel = MelSpec(fs, 64, 400, 160)
         duration = float(wav.shape[0]) / sr
         report["series"] = {}
         report["temporal"] = {"window_s": options.window_s, "hop_s": options.hop_s,
@@ -189,17 +199,39 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
         for line in _narrative_for(h["key"], h["pred"], options.explanation):
             report["narrative"].append(line)
 
-    # overall summary
-    abnormal = [h for h in report["heads"]
-                if h["kind"] == "binary" and h["pred"] == "abnormal"]
+    # overall summary: only screens in the routed domain decide the verdict (mixed/unknown → both)
+    route = source["pred"] if source else None
+    order = ["lung_types", "lung_binary", "heart_types", "heart_binary"] if route == "lung" else \
+        ["heart_types", "heart_binary", "lung_types", "lung_binary"]
+    routed = {"heart": {"heart_types", "heart_binary"}, "lung": {"lung_types", "lung_binary"}}.get(route, set(order))
+    flagged = [h for h in report["heads"] if h["kind"] == "binary" and h["pred"] == "abnormal"]
+    abnormal = [h for h in flagged if h["key"] in routed]
+    for h in flagged:
+        if h["key"] not in routed:
+            report["narrative"].append(
+                f"Reference only: {h['label']} flagged abnormal, but this clip was routed to {route}, so that "
+                "screen is outside its sound domain and is reported as a reference-only flag.")
+    reference = [h for h in flagged if h["key"] not in routed]
     if abnormal:
         report["verdict"] = "abnormal-flag"
-        report["narrative"].insert(0, "Summary: at least one screening head flagged a possible abnormality. "
-                                      "Please read the disclaimers and consider professional review.")
+        report["narrative"].insert(0, "Summary: a screening head for the routed sound domain flagged a possible "
+                                      "abnormality. Please read the disclaimers and consider professional review.")
+    elif reference:
+        report["verdict"] = "reference-flag"
+        report["narrative"].insert(0, f"Summary: no {route} screen flagged an abnormality, but a reference-only "
+                                      f"screen outside the routed domain did ({', '.join(h['label'] for h in reference)}). "
+                                      "Treat it with caution and consider professional review if in doubt.")
     else:
         report["verdict"] = "no-flag"
         report["narrative"].insert(0, "Summary: no screening head flagged an abnormality. This does not rule "
                                       "out disease.")
+
+    report["route"] = route
+    present = {h["key"] for h in report["heads"]}
+    report["panels"] = [{"key": k, "routed": k in routed} for k in order if k in present]
+    report["knowledge"] = {f"{h['key']}:{c}": k for h in report["heads"] for c in h["classes"]
+                           if any(k := config.knowledge_for(h["key"], c))}
+    report["quant"] = analysis.quantify(wav, sr, route, report["heads"], report.get("series"))
 
     # AI personalized narrative (LLM when configured, else offline synthesizer)
     findings_payload = [

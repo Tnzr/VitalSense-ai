@@ -42,6 +42,7 @@ button.primary:hover { filter: brightness(1.08); }
 .pill { padding: 3px 10px; border-radius: 12px; font-size: .8rem; font-weight: 700; }
 .pill-ok { background: #16351f; color: var(--ok); }
 .pill-bad { background: #3a1a1c; color: var(--bad); }
+.pill-warn { background: #3a311a; color: #f2c14e; }
 .muted { color: var(--muted); font-size: .85rem; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid #22303d; font-size: .9rem; }

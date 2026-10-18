@@ -62,6 +62,22 @@ def model_registry() -> List[Head]:
 
 
 # ---------------------------------------------------------------- knowledge base
+def knowledge_for(head_key: str, label: str):
+    """(finding, awareness) for a class, preferring the head's domain (heart/lung share "Normal")."""
+    if head_key.startswith("lung") and label in LUNG_KNOWLEDGE:
+        return LUNG_KNOWLEDGE[label]
+    return KNOWLEDGE.get(label, ("", ""))
+
+
+LUNG_KNOWLEDGE = {
+    "Normal": (
+        "No abnormal lung-sound pattern was detected by the model.",
+        "Normal (vesicular) breath sounds are soft and low-pitched, heard mostly during inspiration. A normal "
+        "result is reassuring, but a single recording cannot rule out disease.",
+    ),
+}
+
+
 # Plain-language health-awareness context. NOT diagnostic advice.
 KNOWLEDGE = {
     # heart

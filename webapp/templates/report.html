@@ -4,38 +4,91 @@
 {% if report.error %}
   <div class="card warn"><h2>Could not analyze {{ report.filename }}</h2><pre>{{ report.error }}</pre></div>
 {% else %}
+{% set source = (report.heads | selectattr('kind', 'equalto', 'source') | list | first) if report.heads else none %}
 <section class="report-head">
   <h1>Report — {{ report.filename }}</h1>
-  <span class="pill {{ 'pill-bad' if report.verdict == 'abnormal-flag' else 'pill-ok' }}">
-    {{ 'abnormality flagged' if report.verdict == 'abnormal-flag' else 'no abnormality flagged' }}
+  {% if report.verdict %}
+  <span class="pill {{ {'abnormal-flag': 'pill-bad', 'reference-flag': 'pill-warn'}.get(report.verdict, 'pill-ok') }}">
+    {{ {'abnormal-flag': 'abnormality flagged', 'reference-flag': 'reference-only screen flagged'}.get(report.verdict, 'no abnormality flagged') }}
   </span>
-  <span class="muted">{{ report.quality.duration_s }} s · {{ report.sample_rate }} Hz ·
-    explanation: {{ report.explanation }} · figures: {{ report.figures_level }}</span>
+  {% endif %}
+  {% if source %}
+  <span class="pill pill-route" title="The source router decides which condition panels lead the report.">
+    routed as {{ source.pred }} · {{ '%.0f%%' | format(source.confidence * 100) }}</span>
+  {% endif %}
+  <span class="muted">{{ report.quality.duration_s }} s · {{ report.sample_rate }} Hz</span>
+  <span class="report-actions no-print">
+    <button class="btn small" id="dl-json">Download JSON</button>
+    <button class="btn small" id="dl-csv">Download CSV</button>
+    <button class="btn small" onclick="window.print()">Print</button>
+  </span>
 </section>
 
 {% if report.quality.flags %}
 <div class="card warn"><strong>Signal quality flags:</strong> {{ report.quality.flags | join('; ') }}</div>
 {% endif %}
 
-{% if report.audio_uri %}
-<div class="card"><audio id="report-audio" controls src="{{ report.audio_uri }}"></audio></div>
+{% if report.panels %}
+<section class="card">
+  <h2>Condition analysis</h2>
+  <p class="hint">Ranked class probabilities from the ensemble of fold models; whiskers show ± one standard deviation
+     across folds (model disagreement). Click a class to read about it and highlight it on the timeline.
+     Typing heads are weak (balanced accuracy ≈ 0.37 heart / 0.45 lung) — treat as educational.</p>
+  <div id="panels" class="panels"></div>
+</section>
 {% endif %}
 
-{% if report.series %}
-<div class="card">
-  <h2>Live temporal view</h2>
-  <p class="muted">Head probabilities over a sliding window ({{ report.temporal.window_s }} s window,
-     {{ report.temporal.hop_s }} s hop), synced to the audio playhead.</p>
-  <label class="inline">Head
-    <select id="live-head">
-      {% for key, s in report.series.items() %}
-        <option value="{{ key }}">{{ s.label }}</option>
-      {% endfor %}
-    </select>
-  </label>
-  <canvas id="live-canvas" width="1000" height="280"></canvas>
-</div>
-<script id="series-data" type="application/json">{{ report.series | tojson }}</script>
+{% if report.viz %}
+<section class="card explorer">
+  <h2>Signal explorer</h2>
+  <p class="hint">Waveform, log-mel spectrogram and condition probability over time share one time axis.
+     Click to seek · drag to zoom · double-click to reset · hover for time / frequency / dB.</p>
+  {% if report.audio_uri %}<audio id="report-audio" controls src="{{ report.audio_uri }}"></audio>{% endif %}
+  <div class="tracks">
+    <div class="track-label">Waveform</div><canvas id="trk-wave" class="trk" style="height:70px"></canvas>
+    <div class="track-label">Log-mel spectrogram (0–2 kHz)</div><canvas id="trk-mel" class="trk" style="height:200px"></canvas>
+    <div class="track-label">Probability over time
+      {% if report.series %}
+      <select id="trk-head">
+        {% for key, s in report.series.items() %}<option value="{{ key }}">{{ s.label }}</option>{% endfor %}
+      </select>
+      <span class="muted">({{ report.temporal.window_s }} s window, {{ report.temporal.hop_s }} s hop)</span>
+      {% endif %}
+    </div>
+    <canvas id="trk-prob" class="trk" style="height:150px"></canvas>
+    <div id="trk-legend" class="legend"></div>
+    <div id="trk-tip" class="trk-tip"></div>
+  </div>
+  <p class="muted" id="trk-range"></p>
+  <p class="muted small" id="trk-trunc" hidden></p>
+</section>
+{% endif %}
+
+{% if report.quant %}
+<section class="card" id="quant">
+  <h2>Quantified audio report</h2>
+  <p class="hint">Automatically measured from the audio. Descriptive estimates for education/research, not clinical
+     measurements.</p>
+  <div class="bandbar">
+    {% for b in report.quant.bands %}
+      <span class="band band{{ loop.index }}" style="width: {{ [b.pct, 0.5] | max }}%"
+            title="{{ b.label }}: {{ b.pct }}% — {{ b.note }}">{% if b.pct >= 8 %}{{ b.label.split(' ')[0] }} {{ b.pct }}%{% endif %}</span>
+    {% endfor %}
+  </div>
+  <div class="quant-grid">
+    {% for sec in report.quant.sections %}
+    <div>
+      <h3>{{ sec.title }}</h3>
+      <table class="quant">
+        {% for r in sec.rows %}
+        <tr><td>{{ r.metric }}{% if r.note %}<div class="muted small">{{ r.note }}</div>{% endif %}</td>
+            <td class="num">{{ r.value }} {{ r.unit }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+</section>
 {% endif %}
 
 <div class="card">
@@ -64,8 +117,8 @@
   <ul>{% for s in report.ai_narrative.next_steps %}<li>{{ s }}</li>{% endfor %}</ul>
   <p class="muted">{{ report.ai_narrative.disclaimer }}</p>
 
-  <h3>Ask a follow-up</h3>
-  <div class="chat">
+  <h3 class="no-print">Ask a follow-up</h3>
+  <div class="chat no-print">
     <div id="chat-log" class="chat-log"></div>
     <div class="chat-row">
       <input id="chat-input" placeholder="Ask about your recording or recommendations...">
@@ -77,36 +130,26 @@
 <script id="findings-data" type="application/json">{{ report.findings_payload | tojson }}</script>
 {% endif %}
 
-<div class="card">
-  <h2>Predictions</h2>
-  <table>
-    <thead><tr><th>Head</th><th>Prediction</th><th>Confidence</th><th>Ensemble</th></tr></thead>
-    <tbody>
-    {% for h in report.heads %}
-      <tr>
-        <td>{{ h.label }}</td>
-        <td><strong>{{ h.pred }}</strong></td>
-        <td>{{ '%.1f%%' | format(h.confidence * 100) }}</td>
-        <td>{{ h.n_models }} folds</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-
 {% if report.figures %}
-<div class="card">
-  <h2>Figures</h2>
+<details class="card">
+  <summary><strong>Static figures</strong> <span class="muted">(matplotlib renders of the same analysis)</span></summary>
   <div class="figures">
     {% for name, uri in report.figures.items() %}
       <figure><img src="{{ uri }}" alt="{{ name }}"></figure>
     {% endfor %}
   </div>
-</div>
+</details>
 {% endif %}
 
 {% if report.credits %}<div class="card"><strong>Data credit.</strong> {{ report.credits }}</div>{% endif %}
 <div class="card warn"><strong>Disclaimer.</strong> {{ disclaimer }}</div>
+<script id="report-data" type="application/json">{{ {
+  "filename": report.filename, "sample_rate": report.sample_rate, "verdict": report.get("verdict"),
+  "route": report.get("route"), "quality": report.quality, "heads": report.heads,
+  "panels": report.get("panels") or [], "knowledge": report.get("knowledge") or {},
+  "series": report.get("series"), "temporal": report.get("temporal"), "quant": report.get("quant"),
+  "viz": report.get("viz"), "narrative": report.narrative
+} | tojson }}</script>
 {% endif %}
 {% endblock %}
-{% block scripts %}{% if report.series %}<script src="/static/live.js"></script>{% endif %}{% if report.ai_narrative %}<script src="/static/llm.js"></script>{% endif %}{% endblock %}
+{% block scripts %}{% if not report.error %}<script src="/static/viz.js"></script><script src="/static/report.js"></script>{% endif %}{% if report.ai_narrative %}<script src="/static/llm.js"></script>{% endif %}{% endblock %}

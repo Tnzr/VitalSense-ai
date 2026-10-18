@@ -19,7 +19,7 @@ from fastapi.templating import Jinja2Templates
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEBAPP = os.path.dirname(HERE)
 
-from . import course, game  # noqa: E402
+from . import course, game, matrix  # noqa: E402
 from . import inference, report  # noqa: E402
 from . import llm as llm_mod  # noqa: E402
 from . import playback  # noqa: E402
@@ -130,12 +130,18 @@ def _save_upload(upload: UploadFile) -> str:
 
 
 def _audio_data_uri(path: str) -> Optional[str]:
+    """Browser-playable WAV data URI (4 kHz source clips decode as silence in
+    some browsers, so re-encode via `playback.to_playback`)."""
     try:
-        with open(path, "rb") as f:
-            data = f.read()
-        mime = "audio/wav" if path.lower().endswith(".wav") else "audio/octet-stream"
-        return f"data:{mime};base64," + base64.b64encode(data).decode()
-    except OSError:
+        import io
+
+        import soundfile as sf
+
+        data, sr = sf.read(path, dtype="float32", always_2d=True)
+        buf = io.BytesIO()
+        sf.write(buf, playback.to_playback(data[:, 0], sr), playback.PLAYBACK_SR, format="WAV", subtype="PCM_16")
+        return "data:audio/wav;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception:
         return None
 
 
@@ -298,6 +304,22 @@ def game_audio(sample_id: str, task: str = "heart", scheme: str = "10class"):
     if not path:
         raise HTTPException(status_code=404, detail="clip not found")
     return Response(content=playback.playback_bytes_for(path), media_type="audio/wav")
+
+
+# ------------------------------------------------------------ sound matrix
+@app.get("/matrix", response_class=HTMLResponse)
+def matrix_page(request: Request):
+    return templates.TemplateResponse(request, "matrix.html", {
+        "domains": matrix.tiles(), "disclaimer": DISCLAIMER, "audio_url": course.audio_url,
+    })
+
+
+@app.get("/api/matrix/mel/{sample_id}")
+def matrix_mel(sample_id: str, task: str = "heart", scheme: str = "10class") -> JSONResponse:
+    payload = matrix.mel_for(sample_id, task, scheme)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="clip not found")
+    return JSONResponse(payload)
 
 
 # ------------------------------------------------------------ training course

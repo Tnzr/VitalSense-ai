@@ -108,9 +108,11 @@ system players); raw versions are in `docs/assets/audio/` too.
 
 ## Web app — Inference-as-a-Service + Educational Game
 
-Upload one file for a full report or many for a batch table. The report routes
-the clip (heart / lung / mixed), screens it (normal / abnormal), types it
-(10 heart / 6 lung classes), and renders figures + plain-language guidance.
+Upload (or record with a phone/computer mic) one file for a full report, or many for
+a batch table. The report leads with **condition analysis** — 10 heart types / 6 lung
+types plus normal/abnormal screening — with the heart/lung/mixed router only deciding
+which condition panels lead. It adds an interactive signal explorer and a quantified
+audio report.
 
 | Landing / upload | Synchronized report | Learn (game) |
 |---|---|---|
@@ -118,8 +120,27 @@ the clip (heart / lung / mixed), screens it (normal / abnormal), types it
 
 **Full step-by-step tour:** [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md).
 
+### Log-mel gallery — what each sound type looks like
+
+Regenerate with `python scripts/make_mel_gallery.py` (first 6 s of one example per class).
+
+![Heart sound types — log-mel](docs/assets/mel_gallery_heart.png)
+![Lung sound types — log-mel](docs/assets/mel_gallery_lung.png)
+
 App highlights:
 
+- **Condition panels** — ranked class probabilities with ± fold-model disagreement
+  whiskers; click a class for its description and to highlight it over time.
+- **Signal explorer** — browser-drawn waveform, log-mel spectrogram and probability
+  over time on one axis, synced to audio: click to seek, drag to zoom, hover for
+  time / Hz / dB.
+- **Quantified audio report** — heart/breathing rate estimates, rhythm regularity,
+  band energy split, spectral centroid/roll-off/flatness, SNR, clipping and model
+  certainty (fold spread, margin, entropy, temporal agreement); JSON/CSV export + print.
+- **Sound matrix** (`/matrix`) — one tile per heart/lung type with audio, a live
+  log-mel plot, listen-for / look-for cues, compare (up to 3) and a hide-labels quiz.
+- **Phone-mic capture** — in-browser 15 s recording → WAV → the same report
+  (flagged as out-of-domain: models were trained on 4 kHz stethoscope clips).
 - **Parametrized report** — choose heads, explanation depth (brief/standard/detailed),
   figure level, and temporal mode (single window or multi-scale 1/3/15 s).
 - **Signal quality** — duration, RMS, clipping and SNR flags.

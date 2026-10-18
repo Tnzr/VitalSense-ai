@@ -10,6 +10,7 @@
   <div class="cta-row">
     <a class="btn primary" href="/course">Start the free course →</a>
     <a class="btn" href="#analyze">Analyze a recording</a>
+    <a class="btn" href="/matrix">Explore the sound matrix</a>
     <a class="btn" href="/game">Play the listening game</a>
   </div>
 </section>
@@ -50,15 +51,30 @@
 
 <section class="card" id="analyze">
   <h2>Analyze a recording</h2>
-  <p class="hint">Upload one file for a full explained report, or several for a batch table.</p>
+  <p class="hint">Upload or record one clip for a full report: heart condition typing (10 types), lung condition typing
+     (6 types) and normal/abnormal screening, routed by sound source, plus an interactive log-mel explorer and a
+     quantified audio report. Upload several files for a batch table.</p>
 </section>
 
-<form class="card" action="/analyze" method="post" enctype="multipart/form-data">
+<form class="card" id="analyze-form" action="/analyze" method="post" enctype="multipart/form-data">
   <div class="grid">
     <div>
       <label class="lbl">Audio files (.wav)</label>
-      <input type="file" name="files" accept=".wav,audio/*" multiple required>
+      <input type="file" id="files-input" name="files" accept=".wav,audio/*" multiple required>
       <p class="hint">Tip: the dataset clips are 4 kHz mono WAV. Upload one for a full report, many for a batch table.</p>
+
+      <div class="recorder">
+        <label class="lbl">…or record with your phone / computer microphone</label>
+        <div class="row">
+          <button type="button" class="btn" id="rec-btn">Record 15 s</button>
+          <canvas id="rec-meter" width="220" height="24"></canvas>
+          <button type="button" class="btn primary" id="rec-use" disabled>Analyze recording</button>
+        </div>
+        <audio id="rec-preview" controls hidden></audio>
+        <p class="hint" id="rec-status">Quiet room; turn off music/TV. Press the phone's bottom-edge mic gently against
+           the chest (heart: left of the sternum; lungs: upper back) and stay still. The models were trained on
+           digital-stethoscope clips, so phone audio is exploratory.</p>
+      </div>
 
       <label class="lbl">Prediction heads</label>
       <div class="checks">
@@ -125,3 +141,4 @@
 
 <div class="card warn"><strong>Disclaimer.</strong> {{ disclaimer }}</div>
 {% endblock %}
+{% block scripts %}<script src="/static/record.js"></script>{% endblock %}

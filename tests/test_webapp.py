@@ -63,3 +63,26 @@ def test_results_keep_original_filename(client):
     r = client.post("/api/analyze", files=files)
     assert r.status_code == 200
     assert r.json()["results"][0]["filename"] == "patient 7.wav"
+
+
+def test_matrix_page_renders(client):
+    r = client.get("/matrix")
+    assert r.status_code == 200
+    assert "Sound matrix" in r.text
+
+
+def test_matrix_mel_unknown_clip_404(client):
+    assert client.get("/api/matrix/mel/does-not-exist?task=heart&scheme=10class").status_code == 404
+
+
+def test_api_analyze_returns_viz_and_quant(client):
+    import numpy as np
+    import soundfile as sf
+
+    buf = io.BytesIO()
+    t = np.arange(4000 * 6) / 4000
+    sf.write(buf, (0.3 * np.sin(2 * np.pi * 120 * t)).astype("float32"), 4000, format="WAV", subtype="PCM_16")
+    files = [("files", ("tone.wav", io.BytesIO(buf.getvalue()), "audio/wav"))]
+    rep = client.post("/api/analyze", files=files, data={"figures": "none", "ai_narrative": "false"}).json()["results"][0]
+    assert rep["viz"]["mel"]["n_mels"] == 64
+    assert {s["title"] for s in rep["quant"]["sections"]} >= {"Signal", "Spectrum"}
