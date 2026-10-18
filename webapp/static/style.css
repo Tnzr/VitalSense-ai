@@ -204,3 +204,10 @@ body.quiz .revealed .tile-label, body.quiz .tile.revealed .tile-label { filter: 
   .muted, .hint, .bar-val { color: #444; }
 }
 .panel-detail a, .tile a { color: var(--accent); }
+.stems { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.stem audio { width: 100%; }
+.stem-mel { height: 130px; margin: 8px 0; }
+.stem-top { list-style: none; padding: 0; margin: 4px 0 8px; }
+.stem-top li { display: grid; grid-template-columns: 1fr 120px 40px; gap: 8px; align-items: center; font-size: 13px; }
+.stem-top .bar { background: #0b121a; border-radius: 4px; height: 8px; overflow: hidden; }
+.stem-top .bar i { display: block; height: 100%; background: var(--accent); }

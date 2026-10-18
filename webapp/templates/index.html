@@ -103,6 +103,13 @@
       <label class="chk"><input type="checkbox" name="audio_playback" value="true" checked> Embed audio playback</label>
       <label class="chk"><input type="checkbox" name="include_disclaimer" value="true" checked> Show disclaimer</label>
 
+      <label class="lbl">Heart / lung separation</label>
+      <select name="separate">
+        <option value="auto" selected>Auto (when the clip is routed as mixed)</option>
+        <option value="always">Always (e.g. phone recordings)</option>
+        <option value="off">Off</option>
+      </select>
+
       <label class="chk"><input type="checkbox" name="temporal" value="true" checked>
         Temporal sweep (probability vs time, paired with log-mel)</label>
       <div class="row">
