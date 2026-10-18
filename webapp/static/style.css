@@ -204,3 +204,4 @@ body.quiz .revealed .tile-label, body.quiz .tile.revealed .tile-label { filter: 
   .muted, .hint, .bar-val { color: #444; }
 }
 .panel-detail a, .tile a { color: var(--accent); }
+.example-mel { height: 130px; margin-top: 8px; }
