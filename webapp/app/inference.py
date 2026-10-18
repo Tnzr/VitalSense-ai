@@ -79,11 +79,10 @@ class HeadModel:
     def predict(self, wav: torch.Tensor, sr: int) -> Dict:
         filt = self.preprocess(wav, sr)
         spec = self.mel(filt).unsqueeze(0).unsqueeze(0).to(self.device)
-        probs = np.zeros(len(self.head.classes))
         with torch.no_grad():
-            for net in self.models:
-                probs += torch.softmax(net(spec), dim=1).cpu().numpy()[0]
-        probs /= max(len(self.models), 1)
+            folds = np.stack([torch.softmax(net(spec), dim=1).cpu().numpy()[0] for net in self.models]) \
+                if self.models else np.full((1, len(self.head.classes)), 1.0 / len(self.head.classes))
+        probs = folds.mean(axis=0)
         pred_idx = int(probs.argmax())
         return {
             "key": self.head.key,
@@ -94,6 +93,7 @@ class HeadModel:
             "pred": self.head.classes[pred_idx],
             "pred_index": pred_idx,
             "confidence": float(probs[pred_idx]),
+            "probs_std": folds.std(axis=0).tolist(),
             "n_models": len(self.models),
             "filtered": filt,
         }

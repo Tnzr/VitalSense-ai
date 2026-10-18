@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Sound matrix — heart &amp; lung sound types{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Sound matrix</h1>
+  <p>Every heart and lung sound type the models know, side by side. Play a tile and watch its log-mel spectrogram:
+     murmurs fill the gaps between beats, wheezes draw horizontal tonal lines, crackles show up as vertical streaks.
+     Click a spectrogram to jump within the clip; tick <em>Compare</em> on up to three tiles to line them up.</p>
+  <div class="cta-row no-print">
+    <label class="chk"><input type="checkbox" id="quiz-mode"> Hide labels (self-test — click a tile title to reveal)</label>
+  </div>
+</section>
+
+<section class="card compare" id="compare" hidden>
+  <h2>Compare</h2>
+  <div class="compare-row" id="compare-row"></div>
+</section>
+
+{% for d in domains %}
+<section class="card">
+  <h2>{{ d.title }} <span class="muted">({{ d.tiles | length }} types)</span></h2>
+  {% if d.error %}<p class="warn">Dataset not available: {{ d.error }}. Run <code>./setup.sh</code> to download HLS-CMDS.</p>{% endif %}
+  <div class="tiles">
+    {% for t in d.tiles %}
+    <article class="tile" id="{{ (d.key ~ '-' ~ t.label) | lower | replace(' ', '-') }}"
+             data-task="{{ d.task }}" data-scheme="{{ d.scheme }}" data-label="{{ t.label }}"
+             data-samples='{{ t.sample_ids | tojson }}'>
+      <header><h3 class="tile-label">{{ t.label }}</h3><span class="muted small">{{ t.count }} clips</span></header>
+      <canvas class="mini-mel"></canvas>
+      {% if t.sample_ids %}
+      <audio controls preload="none" src="{{ audio_url(t.sample_ids[0], d.task, d.scheme) }}"></audio>
+      <div class="tile-samples">
+        {% for sid in t.sample_ids %}<button class="btn small{% if loop.first %} on{% endif %}" data-idx="{{ loop.index0 }}"
+          title="{{ sid }}">Example {{ loop.index }}</button>{% endfor %}
+        <label class="chk small"><input type="checkbox" class="cmp"> Compare</label>
+      </div>
+      {% endif %}
+      {% if t.listen %}<p class="small"><b>Listen for:</b> {{ t.listen }}</p>{% endif %}
+      {% if t.look %}<p class="small"><b>Look for:</b> {{ t.look }}</p>{% endif %}
+      {% if t.finding %}<details class="small"><summary>Clinical context</summary>{{ t.finding }}</details>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+<div class="card"><strong>Data credit.</strong> HLS-CMDS (Torabi, Shirani &amp; Reilly, 2025) — CC BY 4.0. Recordings are
+  from a clinical manikin, so real patients sound less clean.</div>
+<div class="card warn"><strong>Disclaimer.</strong> {{ disclaimer }}</div>
+{% endblock %}
+{% block scripts %}<script src="/static/viz.js"></script><script src="/static/matrix.js"></script>{% endblock %}

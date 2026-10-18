@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 
-from . import config
+from . import analysis, config
 from . import llm as llm_mod
 from .inference import fig_to_data_uri, get_registry, head_prob_fig
 
@@ -37,6 +37,9 @@ def _quality(wav: torch.Tensor, sr: int) -> Dict:
     rms = float(np.sqrt(np.mean(y ** 2)))
     clip_ratio = float(np.mean(np.abs(y) > 0.99))
     flags = []
+    if sr > 8000:
+        flags.append(f"recorded at {sr} Hz (phone/computer mic?) — models were trained on 4 kHz digital-stethoscope "
+                     "clips, so expect lower reliability")
     if duration < 5:
         flags.append("short recording (<5 s) — results may be unreliable")
     if clip_ratio > 0.001:
@@ -91,10 +94,13 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
             continue
         out = head.predict(wav, sr)
         report["heads"].append({k: out[k] for k in
-                                ("key", "label", "kind", "classes", "probs", "pred", "confidence", "n_models")})
+                                ("key", "label", "kind", "classes", "probs", "probs_std", "pred", "confidence",
+                                 "n_models")})
         report.setdefault("_filtered", {})[key] = out["filtered"]
 
+    report["viz"] = analysis.viz_payload(wav, sr)
     if not report["heads"]:
+        report["quant"] = analysis.quantify(wav, sr)
         report["narrative"].append(
             "No prediction heads were available. Ensure model checkpoints exist and the service loaded them.")
         return report
@@ -200,6 +206,17 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
         report["verdict"] = "no-flag"
         report["narrative"].insert(0, "Summary: no screening head flagged an abnormality. This does not rule "
                                       "out disease.")
+
+    route = source["pred"] if source else None
+    order = ["lung_types", "lung_binary", "heart_types", "heart_binary"] if route == "lung" else \
+        ["heart_types", "heart_binary", "lung_types", "lung_binary"]
+    routed = {"heart": {"heart_types", "heart_binary"}, "lung": {"lung_types", "lung_binary"}}.get(route, set(order))
+    present = {h["key"] for h in report["heads"]}
+    report["route"] = route
+    report["panels"] = [{"key": k, "routed": k in routed} for k in order if k in present]
+    report["knowledge"] = {c: config.KNOWLEDGE[c] for h in report["heads"] for c in h["classes"]
+                           if c in config.KNOWLEDGE}
+    report["quant"] = analysis.quantify(wav, sr, route, report["heads"], report.get("series"))
 
     # AI personalized narrative (LLM when configured, else offline synthesizer)
     findings_payload = [
