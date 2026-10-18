@@ -74,6 +74,7 @@ def viz_payload(wav: torch.Tensor, sr: int) -> Dict:
     return {
         "sr": VIZ_SR,
         "duration": n / VIZ_SR,
+        "source_duration": wav.reshape(-1).shape[0] / sr,
         "mel": {
             "n_mels": int(q.shape[0]), "frames": int(q.shape[1]),
             "hop_s": _MEL_HOP / VIZ_SR, "db_min": round(lo, 1), "db_max": round(top, 1),
@@ -153,6 +154,8 @@ def quantify(wav: torch.Tensor, sr: int, source: Optional[str] = None,
     snr = 10 * np.log10((np.percentile(energies, 90) + 1e-12) / (np.percentile(energies, 10) + 1e-12))
     sections.append({"title": "Signal", "rows": [
         _row("Duration", raw.size / sr if sr else 0.0, "s"),
+        *([_row("Analysed span", y.size / VIZ_SR, "s", f"first {MAX_SECONDS} s; later audio is not measured")]
+          if sr and raw.size / sr > MAX_SECONDS else []),
         _row("Input sample rate", int(sr), "Hz",
              "phone/computer mic rate — model was trained on 4 kHz stethoscope clips" if sr > 8000 else ""),
         _row("RMS level", 20 * np.log10(rms + 1e-12), "dBFS"),

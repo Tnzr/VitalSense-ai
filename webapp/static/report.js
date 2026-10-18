@@ -84,6 +84,12 @@
   if (data.viz && document.getElementById("trk-mel")) {
     const keys = data.series ? Object.keys(data.series) : [];
     const lead = (data.panels.find((p) => keys.includes(p.key)) || {}).key || keys[0] || null;
+    if (data.viz.source_duration > data.viz.duration + 0.5) {
+      const note = document.getElementById("trk-trunc");
+      note.hidden = false;
+      note.textContent = `The explorer and quantified metrics cover the first ${data.viz.duration.toFixed(0)} s of this ` +
+        `${data.viz.source_duration.toFixed(0)} s recording; playback and probability-over-time use the full clip.`;
+    }
     explorer = V.SignalExplorer({
       viz: data.viz, audio: document.getElementById("report-audio"),
       wave: document.getElementById("trk-wave"), mel: document.getElementById("trk-mel"),

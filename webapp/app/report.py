@@ -210,18 +210,24 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
         if h["key"] not in routed:
             report["narrative"].append(
                 f"Reference only: {h['label']} flagged abnormal, but this clip was routed to {route}, so that "
-                "screen is outside its sound domain and does not affect the summary.")
+                "screen is outside its sound domain and is reported as a reference-only flag.")
+    reference = [h for h in flagged if h["key"] not in routed]
     if abnormal:
         report["verdict"] = "abnormal-flag"
-        report["narrative"].insert(0, "Summary: at least one screening head flagged a possible abnormality. "
-                                      "Please read the disclaimers and consider professional review.")
+        report["narrative"].insert(0, "Summary: a screening head for the routed sound domain flagged a possible "
+                                      "abnormality. Please read the disclaimers and consider professional review.")
+    elif reference:
+        report["verdict"] = "reference-flag"
+        report["narrative"].insert(0, f"Summary: no {route} screen flagged an abnormality, but a reference-only "
+                                      f"screen outside the routed domain did ({', '.join(h['label'] for h in reference)}). "
+                                      "Treat it with caution and consider professional review if in doubt.")
     else:
         report["verdict"] = "no-flag"
         report["narrative"].insert(0, "Summary: no screening head flagged an abnormality. This does not rule "
                                       "out disease.")
 
-    present = {h["key"] for h in report["heads"]}
     report["route"] = route
+    present = {h["key"] for h in report["heads"]}
     report["panels"] = [{"key": k, "routed": k in routed} for k in order if k in present]
     report["knowledge"] = {f"{h['key']}:{c}": k for h in report["heads"] for c in h["classes"]
                            if any(k := config.knowledge_for(h["key"], c))}

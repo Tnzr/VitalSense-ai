@@ -8,8 +8,8 @@
 <section class="report-head">
   <h1>Report — {{ report.filename }}</h1>
   {% if report.verdict %}
-  <span class="pill {{ 'pill-bad' if report.verdict == 'abnormal-flag' else 'pill-ok' }}">
-    {{ 'abnormality flagged' if report.verdict == 'abnormal-flag' else 'no abnormality flagged' }}
+  <span class="pill {{ {'abnormal-flag': 'pill-bad', 'reference-flag': 'pill-warn'}.get(report.verdict, 'pill-ok') }}">
+    {{ {'abnormal-flag': 'abnormality flagged', 'reference-flag': 'reference-only screen flagged'}.get(report.verdict, 'no abnormality flagged') }}
   </span>
   {% endif %}
   {% if source %}
@@ -60,6 +60,7 @@
     <div id="trk-tip" class="trk-tip"></div>
   </div>
   <p class="muted" id="trk-range"></p>
+  <p class="muted small" id="trk-trunc" hidden></p>
 </section>
 {% endif %}
 
