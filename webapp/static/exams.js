@@ -7,7 +7,7 @@
   var COLORS = { heart_binary: "#c44e52", lung_binary: "#4c72b0", heart_rate: "#c44e52", breathing_rate: "#4c72b0" };
   var DAY = 86400000;
 
-  function day(d) { return Date.parse(d + "T00:00:00"); }
+  function day(d) { return Date.parse(d + "T00:00:00Z"); }  // UTC, matching toISOString() labels
 
   function draw(canvasId, legendId, keys, fixedRange, fmt) {
     var cv = document.getElementById(canvasId);
