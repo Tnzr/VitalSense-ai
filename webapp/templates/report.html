@@ -91,6 +91,42 @@
 </section>
 {% endif %}
 
+{% if report.separation %}
+<section class="card" id="separation">
+  <h2>Heart / lung separation</h2>
+  {% if report.separation.error %}
+  <p class="muted">{{ report.separation.error }}</p>
+  {% else %}
+  <p class="hint">The recording was split into an estimated heart part and lung part ({{ report.separation.method }}),
+     and each part was analyzed by its own domain's models. Separation is approximate — listen for leftover
+     sound from the other source. Click a spectrogram to seek.</p>
+  <div class="stems">
+    {% for name, st in report.separation.stems.items() %}
+    <div class="stem">
+      <h3>{{ name|capitalize }} estimate <span class="muted small">· {{ (st.energy_share * 100)|round|int }}% of energy</span></h3>
+      {% if st.audio_uri %}<audio controls src="{{ st.audio_uri }}" id="stem-audio-{{ name }}"></audio>{% endif %}
+      <canvas class="mini-mel stem-mel" id="stem-mel-{{ name }}"></canvas>
+      {% for h in st.heads %}
+      <div class="stem-head">
+        <strong>{{ h.label }}:</strong> {{ h.pred }} <span class="muted">({{ (h.confidence * 100)|round|int }}%)</span>
+        {% if h.kind != "binary" %}
+        <ul class="stem-top">
+          {% for c, p in h.top %}
+          <li><span>{{ c }}</span><span class="bar"><i style="width: {{ (p * 100)|round(1) }}%"></i></span>
+              <span class="muted">{{ (p * 100)|round|int }}%</span></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  <script id="sep-data" type="application/json">{{ report.separation.stems|dictsort|map("last")|map(attribute="viz")|list|tojson }}</script>
+  {% endif %}
+</section>
+{% endif %}
+
 <div class="card">
   <h2>Summary</h2>
   <ul class="narrative">

@@ -80,6 +80,16 @@
     });
   }
 
+  // ---- separated stems
+  const sepEl = document.getElementById("sep-data");
+  if (sepEl) {
+    const vizs = JSON.parse(sepEl.textContent || "[]");
+    ["heart", "lung"].forEach((name, i) => {
+      const c = document.getElementById("stem-mel-" + name);
+      if (c && vizs[i]) V.MiniMel(c, vizs[i], document.getElementById("stem-audio-" + name), vizs[i].duration);
+    });
+  }
+
   // ---- signal explorer
   if (data.viz && document.getElementById("trk-mel")) {
     const keys = data.series ? Object.keys(data.series) : [];

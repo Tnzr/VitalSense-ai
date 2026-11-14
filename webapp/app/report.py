@@ -29,6 +29,7 @@ class ReportOptions:
     scales: List[float] = field(default_factory=lambda: [1.0, 3.0, 15.0])
     patient_context: str = ""
     ai_narrative: bool = True
+    separate: str = "auto"  # auto (mixed route only) | always | off
 
 
 def _quality(wav: torch.Tensor, sr: int) -> Dict:
@@ -232,6 +233,12 @@ def analyze_waveform(wav: torch.Tensor, sr: int, filename: str, options: ReportO
     report["knowledge"] = {f"{h['key']}:{c}": k for h in report["heads"] for c in h["classes"]
                            if any(k := config.knowledge_for(h["key"], c))}
     report["quant"] = analysis.quantify(wav, sr, route, report["heads"], report.get("series"))
+    if options.separate == "always" or (options.separate == "auto" and route == "mixed"):
+        try:
+            from . import separation
+            report["separation"] = separation.separate_report(wav, sr, reg, options.heads, options.audio_playback)
+        except Exception as e:  # pragma: no cover - optional component
+            report["separation"] = {"error": f"{type(e).__name__}: {e}"}
 
     # AI personalized narrative (LLM when configured, else offline synthesizer)
     findings_payload = [

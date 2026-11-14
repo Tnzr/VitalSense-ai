@@ -74,7 +74,8 @@ templates = Jinja2Templates(directory=os.path.join(WEBAPP, "templates"))
 def _opts(heads: List[str], explanation: str, figures: str, disclaimer: bool, audio: bool,
           temporal: bool = False, window_s: float = 3.0, hop_s: float = 0.5,
           temporal_mode: str = "single", scales: str = "1,3,15",
-          patient_context: str = "", ai_narrative: bool = True) -> report.ReportOptions:
+          patient_context: str = "", ai_narrative: bool = True,
+          separate: str = "auto") -> report.ReportOptions:
     valid = [h for h in heads if h in report.DEFAULT_HEADS] or list(report.DEFAULT_HEADS)
     try:
         scale_list = [max(0.5, min(float(s), 60.0)) for s in str(scales).split(",") if s.strip()]
@@ -94,6 +95,7 @@ def _opts(heads: List[str], explanation: str, figures: str, disclaimer: bool, au
         temporal_mode=temporal_mode if temporal_mode in ("single", "multiscale") else "single",
         scales=scale_list,
         patient_context=patient_context,
+        separate=separate if separate in ("auto", "always", "off") else "auto",
         ai_narrative=ai_narrative,
     )
 
@@ -189,10 +191,11 @@ async def analyze(
     scales: str = Form("1,3,15"),
     patient_context: str = Form(""),
     ai_narrative: bool = Form(True),
+    separate: str = Form("auto"),
 ):
     _check_file_count(files)
     opts = _opts(heads, explanation, figures, include_disclaimer, audio_playback, temporal, window_s, hop_s,
-                 temporal_mode, scales, patient_context, ai_narrative)
+                 temporal_mode, scales, patient_context, ai_narrative, separate)
     results = []
     for up in files:
         path = None
@@ -237,11 +240,12 @@ async def api_analyze(
     scales: str = Form("1,3,15"),
     patient_context: str = Form(""),
     ai_narrative: bool = Form(True),
+    separate: str = Form("auto"),
 ):
     """Programmatic Inference-as-a-Service endpoint (JSON)."""
     _check_file_count(files)
     opts = _opts([h for h in heads.split(",") if h], explanation, figures, True, False,
-                 temporal, window_s, hop_s, temporal_mode, scales, patient_context, ai_narrative)
+                 temporal, window_s, hop_s, temporal_mode, scales, patient_context, ai_narrative, separate)
     out = []
     for up in files:
         path = None

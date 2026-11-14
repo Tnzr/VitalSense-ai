@@ -141,6 +141,9 @@ App highlights:
   log-mel plot, listen-for / look-for cues, compare (up to 3) and a hide-labels quiz.
 - **Phone-mic capture** — in-browser 15 s recording → WAV → the same report
   (flagged as out-of-domain: models were trained on 4 kHz stethoscope clips).
+- **Heart / lung separation** — mixed clips (or any clip, with "Always") are split into
+  heart and lung estimates by a trained mask separator; each part gets its own player,
+  log-mel plot and domain-specific condition read. See [Heart / lung separation](#heart--lung-separation).
 - **Parametrized report** — choose heads, explanation depth (brief/standard/detailed),
   figure level, and temporal mode (single window or multi-scale 1/3/15 s).
 - **Signal quality** — duration, RMS, clipping and SNR flags.
@@ -149,6 +152,60 @@ App highlights:
 - **Batch analysis** — table of source, screening, top type, confidence, verdict, quality.
 - **Game mode** — scored ground-truth listening rounds with explanations.
 - **JSON API** — `POST /api/analyze`, `GET /api/game/round`, `POST /api/game/answer`.
+
+## Heart / lung separation
+
+`ml/cardia/separation/` splits a chest recording into a heart part and a lung part.
+
+- **Scoring set.** 36 of the 145 HLS-CMDS `Mix` clips are sample-exact scaled sums of their
+  paired heart/lung recordings (R² ≥ 0.999), so they have exact answers. Separation quality
+  is SI-SDR improvement (SI-SDRi) over the unprocessed mix, in dB.
+- **Leakage control.** HLS-CMDS reuses recordings heavily (195 heart entries → 107 distinct
+  recordings, 195 lung → 94). Duplicates are clustered by cross-correlation, and no cluster in
+  the 36 test mixes is used for training or validation.
+- **Model.** STFT → conv + 2-layer BiGRU → two-source softmax mask (≈0.94 M params), trained
+  with SI-SDR loss on random heart + lung mixes at random levels. Masks sum to one, so
+  heart + lung always reconstructs the input exactly.
+
+SI-SDRi in dB (higher is better; 0 = unprocessed mix):
+
+| method | heart, 36 exact mixes | lung, 36 exact mixes | heart, 48 synthetic val | lung, 48 synthetic val |
+|---|---|---|---|---|
+| identity (do nothing) | 0.00 | 0.00 | 0.00 | 0.00 |
+| frequency split `band` (no training) | +1.18 | −4.26 | −2.41 | −9.98 |
+| `floor_repet_sim` (no training) | −1.40 | −0.25 | −2.10 | −1.20 |
+| **mask model** | **+0.61** | **+2.65** | **+3.25** | **+5.40** |
+
+The no-training baselines are kept as reference points only; heart and lung both carry most of their
+energy below 100 Hz, so frequency or repetition cues alone mis-assign sound. The model generalizes
+less well to the exact mixes than to synthetic validation and starts overfitting after ~14 epochs
+(the best-validation checkpoint is kept).
+
+**Does separating help condition typing?** The served typing heads were run on the raw mix, on the
+separated part, and on the true source recording, for each labelled `Mix` row (balanced accuracy):
+
+| head | raw mix | separated | true source |
+|---|---|---|---|
+| heart typing (10), all 145 mixes | 0.303 | **0.426** | 0.443 |
+| lung typing (6), all 145 mixes | 0.490 | **0.505** | 0.530 |
+| heart typing, 36 exact mixes (separator never saw these recordings) | 0.400 | **0.533** | 0.467 |
+| lung typing, 36 exact mixes | 0.505 | **0.542** | 0.546 |
+
+Separation recovers most of the gap between the raw mix and the clean source for heart typing and a
+little for lung typing. Absolute numbers are optimistic (the served heads' folds include these source
+recordings, and HLS-CMDS duplicates are not yet grouped in their splits); the mix-vs-separated
+comparison uses the same models, and the 36-clip subset is small.
+
+```bash
+cd ml
+python -m cardia.separation.evaluate --split test --methods identity,band,floor_repet_sim  # classical baselines
+python -m cardia.separation.train                       # → ml/runs/sep/separator.pt (~35 min CPU)
+python -m cardia.separation.evaluate --split test --methods identity,model
+cd .. && python scripts/eval_separation_downstream.py   # does separating help condition typing?
+```
+
+The web app picks up `ml/runs/sep/separator.pt` (or `ASCULTO_SEP_CKPT`). HLS-CMDS was recorded on a
+clinical manikin, so expect lower quality on real chests and phone microphones.
 
 ## Personalized AI narrative (LLM)
 
@@ -211,6 +268,7 @@ cd ml && SMOKE=1 ./scripts/run_sequential.sh
 |---|---|
 | `ml/cardia/` | training/eval pipeline: `data/`, `models/`, `train/`, `report/`, `export/`, `wandb_utils/` |
 | `ml/scripts/` | sequential campaign orchestrator + gates (`run_sequential.sh`) |
+| `ml/cardia/separation/` | heart/lung separation: exact-mix scoring set, classical baselines, mask model, trainer |
 | `webapp/` | FastAPI app: inference registry, report engine, game, templates, static |
 | `scripts/` | `make_assets.py`, `screenshot_walkthrough.py` |
 | `deploy/` | container images (`api`, `inference`), worker service + Modal batch worker |
