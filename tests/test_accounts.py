@@ -178,3 +178,11 @@ def test_login_throttled_after_repeated_failures(client, monkeypatch):
         assert client.post("/login", data={"email": "throttle@example.com", "password": "bad-pass!"}).status_code == 401
     r = client.post("/login", data={"email": "throttle@example.com", "password": "correct horse"})
     assert r.status_code == 429
+
+
+def test_expired_login_counters_are_pruned(monkeypatch):
+    old = main.time.time() - main.LOGIN_WINDOW_S - 1
+    store = {f"email:u{i}@example.com": [old] for i in range(main.LOGIN_PRUNE_AT + 5)}
+    monkeypatch.setattr(main, "_failed_logins", store)
+    assert not main._login_blocked(["email:new@example.com", "ip:1.2.3.4"])
+    assert store == {}

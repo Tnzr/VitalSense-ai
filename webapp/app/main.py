@@ -455,13 +455,27 @@ def _login_keys(request: Request, email: str) -> List[str]:
     return [f"email:{accounts.normalize_email(email)}", f"ip:{request.client.host if request.client else ''}"]
 
 
+LOGIN_PRUNE_AT = 1000
+
+
+def _prune_failed_logins(now: float) -> None:
+    for k in [k for k, ts in _failed_logins.items() if not ts or now - ts[-1] >= LOGIN_WINDOW_S]:
+        del _failed_logins[k]
+
+
 def _login_blocked(keys: List[str]) -> bool:
     now = time.time()
+    if len(_failed_logins) > LOGIN_PRUNE_AT:
+        _prune_failed_logins(now)
+    blocked = False
     for k in keys:
-        _failed_logins[k] = [t for t in _failed_logins.get(k, []) if now - t < LOGIN_WINDOW_S]
-        if len(_failed_logins[k]) >= LOGIN_MAX_FAILS[k.split(":", 1)[0]]:
-            return True
-    return False
+        recent = [t for t in _failed_logins.get(k, []) if now - t < LOGIN_WINDOW_S]
+        if recent:
+            _failed_logins[k] = recent
+        else:
+            _failed_logins.pop(k, None)
+        blocked = blocked or len(recent) >= LOGIN_MAX_FAILS[k.split(":", 1)[0]]
+    return blocked
 
 
 def _check_same_origin(request: Request) -> None:
