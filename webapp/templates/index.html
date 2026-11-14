@@ -17,15 +17,18 @@
 
 <section class="card">
   <h2>Hear the difference</h2>
-  <p class="hint">Real dataset recordings, ready to play in your browser.</p>
+  <p class="hint">Real dataset recordings with their log-mel spectrograms (time →, pitch ↑, brighter = louder). Press play to follow along, or click a plot to jump there.</p>
   {% for ex in examples %}
     {% set f, a = knowledge(ex.label) %}
     <div class="example">
       <div class="example-row">
-        <span class="example-label">{{ ex.label }}</span>
+        <span class="example-label">{{ ex.task|capitalize }} · {{ ex.label }}</span>
         <audio controls preload="none"
                src="{{ audio_url(ex.sample_id, ex.task, ex.scheme) }}"></audio>
       </div>
+      <canvas class="mini-mel example-mel" data-sample="{{ ex.sample_id }}"
+              data-task="{{ ex.task }}" data-scheme="{{ ex.scheme }}"
+              title="Log-mel spectrogram — click to seek"></canvas>
       {% if f %}<p class="muted">{{ f }}</p>{% endif %}
     </div>
   {% endfor %}
@@ -141,4 +144,4 @@
 
 <div class="card warn"><strong>Disclaimer.</strong> {{ disclaimer }}</div>
 {% endblock %}
-{% block scripts %}<script src="/static/record.js"></script>{% endblock %}
+{% block scripts %}<script src="/static/viz.js"></script><script src="/static/examples.js"></script><script src="/static/record.js"></script>{% endblock %}
