@@ -20,3 +20,5 @@ docs
 !.env.example
 **/node_modules
 .pytest_cache
+var
+*.db
