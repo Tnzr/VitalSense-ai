@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 import numpy as np
+from scipy.stats import t as student_t
 
 SITES = [
     ("", "Not specified"),
@@ -148,7 +149,8 @@ def _trend(points: List[tuple]) -> Optional[Dict]:
     if len(points) >= 3:
         resid = y - (y.mean() + slope * (x - x.mean()))
         se = float(np.sqrt((resid ** 2).sum() / (len(points) - 2) / sxx))
-        lo, hi = 7 * (slope - 1.96 * se), 7 * (slope + 1.96 * se)
+        crit = float(student_t.ppf(0.975, len(points) - 2))
+        lo, hi = 7 * (slope - crit * se), 7 * (slope + crit * se)
         out["ci95"] = [round(lo, 4), round(hi, 4)]
         out["direction"] = "rising" if lo > 0 else "falling" if hi < 0 else "no clear trend"
     return out
