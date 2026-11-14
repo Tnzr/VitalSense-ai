@@ -15,6 +15,10 @@
       <a href="/matrix">Sound matrix</a>
       <a href="/game">Learn (game)</a>
       <a href="/health" target="_blank">Status</a>
+      {% set u = current_user(request) %}
+      {% if u %}<a href="/exams">My exams</a>
+      <form method="post" action="/logout" class="nav-form"><button type="submit" class="linkbtn">Sign out</button></form>
+      {% else %}<a href="/login">Sign in</a>{% endif %}
     </nav>
   </header>
   <div class="disclaimer-banner">⚠️ {{ disclaimer }}</div>
