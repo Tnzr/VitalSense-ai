@@ -18,7 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY ml/requirements.txt webapp/requirements.txt ./
+COPY ml/requirements.txt ml/requirements.txt
+COPY webapp/requirements.txt webapp/requirements.txt
 RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu \
         -r ml/requirements.txt -r webapp/requirements.txt \
         onnxruntime onnx onnxconverter-common
