@@ -158,3 +158,13 @@ def test_exam_from_report_extracts_metrics():
     ex = longitudinal.exam_from_report(rep)
     assert ex["metrics"] == {"heart_rate": 72.4}
     assert ex["heads"][0]["window_agreement"] == 0.75 and ex["heads"][0]["fold_std"] == 0.05
+
+
+def test_cross_site_posts_rejected(client):
+    client.cookies.clear()
+    r = client.post("/login", data={"email": "a@example.com", "password": "correct horse"},
+                    headers={"origin": "https://evil.example"}, follow_redirects=False)
+    assert r.status_code == 403
+    r = client.post("/register", data={"email": "x@example.com", "password": "correct horse"},
+                    headers={"origin": "http://testserver"}, follow_redirects=False)
+    assert r.status_code == 303

@@ -13,6 +13,7 @@ import tempfile
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Optional
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -444,6 +445,13 @@ def _save_exam(user: dict, rep: dict, site: str, recorded_at: str, note: str) ->
         (note or "").strip()[:MAX_NOTE], rep.get("filename", ""), longitudinal.exam_from_report(rep))
 
 
+def _check_same_origin(request: Request) -> None:
+    """Reject cross-site form posts (login CSRF, forced logout/deletion)."""
+    src = request.headers.get("origin") or request.headers.get("referer")
+    if src and urlsplit(src).netloc != request.headers.get("host", request.url.netloc):
+        raise HTTPException(403, "Cross-site request rejected.")
+
+
 def _safe_next(target: str) -> str:
     return target if target.startswith("/") and not target.startswith("//") and "\\" not in target else "/exams"
 
@@ -481,6 +489,7 @@ def register_page(request: Request, next: str = "/exams"):
 
 @app.post("/login")
 async def login(request: Request, email: str = Form(""), password: str = Form(""), next: str = Form("/exams")):
+    _check_same_origin(request)
     user_id = accounts.authenticate(email, password)
     if user_id is None:
         return _auth_page(request, "login", next, "Email or password is incorrect.", email, 401)
@@ -489,6 +498,7 @@ async def login(request: Request, email: str = Form(""), password: str = Form(""
 
 @app.post("/register")
 async def register(request: Request, email: str = Form(""), password: str = Form(""), next: str = Form("/exams")):
+    _check_same_origin(request)
     try:
         user_id = accounts.create_user(email, password)
     except ValueError as e:
@@ -498,6 +508,7 @@ async def register(request: Request, email: str = Form(""), password: str = Form
 
 @app.post("/logout")
 async def logout(request: Request):
+    _check_same_origin(request)
     accounts.end_session(request.cookies.get(accounts.SESSION_COOKIE))
     resp = RedirectResponse("/", status_code=303)
     resp.delete_cookie(accounts.SESSION_COOKIE)
@@ -540,6 +551,7 @@ def exams_csv(request: Request):
 
 @app.post("/exams/{exam_id}/delete")
 async def delete_exam(request: Request, exam_id: int):
+    _check_same_origin(request)
     user, redirect = _require_page_user(request)
     if redirect:
         return redirect
@@ -549,6 +561,7 @@ async def delete_exam(request: Request, exam_id: int):
 
 @app.post("/account/delete")
 async def delete_account(request: Request, password: str = Form("")):
+    _check_same_origin(request)
     user, redirect = _require_page_user(request)
     if redirect:
         return redirect
