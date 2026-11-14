@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Sign in' if mode == 'login' else 'Create account' }} — Asculto{% endblock %}
+{% block content %}
+<section class="card auth-card">
+  <h1>{{ 'Sign in' if mode == 'login' else 'Create an account' }}</h1>
+  <p class="hint">An account saves your exams so you can compare repeat recordings on the same day and follow the
+     model's results over time. Saved exams keep the model outputs and measurements, not the audio.</p>
+  {% if error %}<div class="card warn" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/{{ mode }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label class="lbl" for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="email" value="{{ email }}" required>
+    <label class="lbl" for="password">Password</label>
+    <input id="password" name="password" type="password" minlength="8" required
+           autocomplete="{{ 'current-password' if mode == 'login' else 'new-password' }}">
+    {% if mode == 'register' %}<p class="hint">At least 8 characters.</p>{% endif %}
+    <button class="primary" type="submit">{{ 'Sign in' if mode == 'login' else 'Create account' }}</button>
+  </form>
+  <p class="hint">
+    {% if mode == 'login' %}No account yet? <a href="/register?next={{ next | urlencode }}">Create one</a>.
+    {% else %}Already registered? <a href="/login?next={{ next | urlencode }}">Sign in</a>.{% endif %}
+  </p>
+</section>
+{% endblock %}

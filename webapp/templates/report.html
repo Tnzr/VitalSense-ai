@@ -24,6 +24,10 @@
   </span>
 </section>
 
+{% if report.saved_exam_id %}
+<div class="card saved no-print">Saved to <a href="/exams">your exam history</a>.</div>
+{% endif %}
+
 {% if report.quality.flags %}
 <div class="card warn"><strong>Signal quality flags:</strong> {{ report.quality.flags | join('; ') }}</div>
 {% endif %}

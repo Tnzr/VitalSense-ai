@@ -207,6 +207,26 @@ cd .. && python scripts/eval_separation_downstream.py   # does separating help c
 The web app picks up `ml/runs/sep/separator.pt` (or `ASCULTO_SEP_CKPT`). HLS-CMDS was recorded on a
 clinical manikin, so expect lower quality on real chests and phone microphones.
 
+## Accounts and exam history (same-day and over-time reports)
+
+Sign in (`/register`, `/login`) and tick **Save to my exam history** on the Analyze form. Each saved exam stores the
+chest site, time, an optional note, every model's result (with fold disagreement and how many time windows agree),
+recording quality and the heart/breathing rate estimates. **Audio is not stored.** `/exams` then shows:
+
+- **Same day:** for repeat recordings on one day, how often the screening models agree on normal/abnormal and how much
+  the probability of an abnormal result varies (mean ± SD).
+- **Over time:** daily averages with min–max whiskers and a 7-day average, a weekly trend with a 95% range, and the
+  change on the latest day against the first 3 exams.
+- **Consistency score (0–100):** half agreement of same-day repeats, half how small their spread is (±0.25 or more
+  scores 0). It measures how repeatable the model output is, not health.
+- A plain-language summary, CSV/JSON export (`/exams/export.csv`, `/api/exams`), and delete per exam or for the
+  whole account.
+
+Accounts use stdlib SQLite (`ASCULTO_DB`, default `var/asculto.db`), scrypt password hashes and revocable
+HTTP-only session cookies (`ASCULTO_COOKIE_SECURE=1` behind HTTPS). The tables are plain SQL with JSON payloads so they
+can move to Postgres/Neon. The trends describe model outputs from manikin-trained models; they are not a health
+assessment and do not measure recovery.
+
 ## Personalized AI narrative (LLM)
 
 `POST /api/llm/report` + the `patient_context` / `ai_narrative` report options

@@ -212,3 +212,30 @@ body.quiz .revealed .tile-label, body.quiz .tile.revealed .tile-label { filter: 
 .stem-top .bar { background: #0b121a; border-radius: 4px; height: 8px; overflow: hidden; }
 .stem-top .bar i { display: block; height: 100%; background: var(--accent); }
 .example-mel { height: 130px; margin-top: 8px; }
+
+/* Accounts and exam history */
+.nav-form { display: inline; margin: 0; }
+.linkbtn { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; opacity: .8; padding: 0; margin-left: 16px; }
+.linkbtn:hover { opacity: 1; color: var(--accent); }
+.auth-card { max-width: 460px; margin: 24px auto; }
+.auth-card input[type=email], .auth-card input[type=password] { width: 100%; box-sizing: border-box; padding: 8px; }
+.save-exam { border: 1px solid #22303d; border-radius: 10px; margin-top: 14px; padding: 8px 14px 12px; }
+.save-exam legend { color: var(--muted); font-weight: 600; padding: 0 6px; }
+.save-exam .inline input[type=text] { width: 100%; }
+.save-exam .inline input[type=datetime-local] { width: auto; }
+.card.saved { border-color: #2c5a3a; background: #13261a; }
+.exam-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.metric { background: #0f1720; border: 1px solid #22303d; border-radius: 10px; padding: 10px 12px; }
+.metric-label { color: var(--muted); font-size: .8rem; }
+.metric-value { font-size: 1.5rem; font-weight: 700; }
+.narrative li { margin: 4px 0; }
+.chart-wrap canvas { width: 100%; height: 240px; display: block; }
+.legend { display: flex; gap: 16px; font-size: .8rem; color: var(--muted); margin: 4px 0 14px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+.chart-tip { position: absolute; z-index: 10; background: #0b121a; border: 1px solid #22303d; border-radius: 8px;
+  padding: 6px 10px; font-size: .8rem; pointer-events: none; }
+.table-scroll { overflow-x: auto; position: relative; }
+.exam-table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+.exam-table th, .exam-table td { border-bottom: 1px solid #22303d; padding: 6px 8px; text-align: left; white-space: nowrap; }
+.exam-table thead th { color: var(--muted); font-weight: 600; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

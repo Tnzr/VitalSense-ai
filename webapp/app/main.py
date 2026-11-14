@@ -5,20 +5,26 @@ Run:  uvicorn webapp.app.main:app --host 0.0.0.0 --port 8000
 from __future__ import annotations
 
 import base64
+import csv
+import io
 import os
 import sys
 import tempfile
+import time
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import List, Optional
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEBAPP = os.path.dirname(HERE)
 
+from . import accounts, longitudinal  # noqa: E402
 from . import course, game, matrix  # noqa: E402
 from . import inference, report  # noqa: E402
 from . import llm as llm_mod  # noqa: E402
@@ -69,6 +75,16 @@ app = FastAPI(title="Asculto — Inference as a Service", version="0.1.0", lifes
 app.add_middleware(_RequestSizeLimit)
 app.mount("/static", StaticFiles(directory=os.path.join(WEBAPP, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(WEBAPP, "templates"))
+COOKIE_SECURE = os.environ.get("ASCULTO_COOKIE_SECURE", "0") == "1"
+MAX_NOTE = 500
+
+
+def current_user(request: Request) -> Optional[dict]:
+    return accounts.user_for_token(request.cookies.get(accounts.SESSION_COOKIE))
+
+
+templates.env.globals["current_user"] = current_user
+templates.env.globals["exam_sites"] = longitudinal.SITES
 
 
 def _opts(heads: List[str], explanation: str, figures: str, disclaimer: bool, audio: bool,
@@ -192,8 +208,13 @@ async def analyze(
     patient_context: str = Form(""),
     ai_narrative: bool = Form(True),
     separate: str = Form("auto"),
+    save_exam: bool = Form(False),
+    site: str = Form(""),
+    recorded_at: str = Form(""),
+    note: str = Form(""),
 ):
     _check_file_count(files)
+    user = current_user(request) if save_exam else None
     opts = _opts(heads, explanation, figures, include_disclaimer, audio_playback, temporal, window_s, hop_s,
                  temporal_mode, scales, patient_context, ai_narrative, separate)
     results = []
@@ -205,6 +226,8 @@ async def analyze(
             rep["filename"] = _display_name(up)
             rep["audio_uri"] = _audio_data_uri(path) if audio_playback and len(files) == 1 else None
             rep["size_bytes"] = os.path.getsize(path)
+            if user:
+                _save_exam(user, rep, site, recorded_at, note)
             results.append(rep)
         except Exception as e:  # pragma: no cover - user-facing error
             results.append({"filename": _display_name(up), "error": f"{type(e).__name__}: {e}"})
@@ -229,6 +252,7 @@ async def analyze(
 
 @app.post("/api/analyze")
 async def api_analyze(
+    request: Request,
     files: List[UploadFile] = File(...),
     heads: str = Form(""),
     explanation: str = Form("standard"),
@@ -241,9 +265,16 @@ async def api_analyze(
     patient_context: str = Form(""),
     ai_narrative: bool = Form(True),
     separate: str = Form("auto"),
+    save_exam: bool = Form(False),
+    site: str = Form(""),
+    recorded_at: str = Form(""),
+    note: str = Form(""),
 ):
     """Programmatic Inference-as-a-Service endpoint (JSON)."""
     _check_file_count(files)
+    user = current_user(request) if save_exam else None
+    if save_exam and not user:
+        raise HTTPException(401, "Sign in to save exams.")
     opts = _opts([h for h in heads.split(",") if h], explanation, figures, True, False,
                  temporal, window_s, hop_s, temporal_mode, scales, patient_context, ai_narrative, separate)
     out = []
@@ -253,6 +284,8 @@ async def api_analyze(
             path = _save_upload(up)
             rep = report.analyze_file(path, opts)
             rep["filename"] = _display_name(up)
+            if user:
+                _save_exam(user, rep, site, recorded_at, note)
             out.append(rep)
         except Exception as e:
             out.append({"filename": _display_name(up), "error": f"{type(e).__name__}: {e}"})
@@ -395,3 +428,185 @@ def demo_batch(request: Request, n: int = 4):
     return templates.TemplateResponse(request, "batch.html", {
         "rows": rows, "errors": [], "n": len(rows), "disclaimer": DISCLAIMER,
     })
+
+
+# ---------------------------------------------------------------------------
+# Accounts and saved exams
+# ---------------------------------------------------------------------------
+def _recorded_at(value: str) -> str:
+    try:
+        return datetime.fromisoformat(value.strip()).replace(tzinfo=None).isoformat(timespec="minutes")
+    except (AttributeError, ValueError):
+        return datetime.now().isoformat(timespec="minutes")
+
+
+def _save_exam(user: dict, rep: dict, site: str, recorded_at: str, note: str) -> None:
+    rep["saved_exam_id"] = accounts.add_exam(
+        user["id"], _recorded_at(recorded_at), site if site in longitudinal.SITE_KEYS else "",
+        (note or "").strip()[:MAX_NOTE], rep.get("filename", ""), longitudinal.exam_from_report(rep))
+
+
+LOGIN_WINDOW_S = 15 * 60
+LOGIN_MAX_FAILS = {"email": 10, "ip": 50}
+_failed_logins: dict = {}
+
+
+def _login_keys(request: Request, email: str) -> List[str]:
+    return [f"email:{accounts.normalize_email(email)}", f"ip:{request.client.host if request.client else ''}"]
+
+
+LOGIN_PRUNE_AT = 1000
+
+
+def _prune_failed_logins(now: float) -> None:
+    for k in [k for k, ts in _failed_logins.items() if not ts or now - ts[-1] >= LOGIN_WINDOW_S]:
+        del _failed_logins[k]
+
+
+def _login_blocked(keys: List[str]) -> bool:
+    now = time.time()
+    if len(_failed_logins) > LOGIN_PRUNE_AT:
+        _prune_failed_logins(now)
+    blocked = False
+    for k in keys:
+        recent = [t for t in _failed_logins.get(k, []) if now - t < LOGIN_WINDOW_S]
+        if recent:
+            _failed_logins[k] = recent
+        else:
+            _failed_logins.pop(k, None)
+        blocked = blocked or len(recent) >= LOGIN_MAX_FAILS[k.split(":", 1)[0]]
+    return blocked
+
+
+def _check_same_origin(request: Request) -> None:
+    """Reject cross-site form posts (login CSRF, forced logout/deletion)."""
+    src = request.headers.get("origin") or request.headers.get("referer")
+    if src and urlsplit(src).netloc != request.headers.get("host", request.url.netloc):
+        raise HTTPException(403, "Cross-site request rejected.")
+
+
+def _safe_next(target: str) -> str:
+    return target if target.startswith("/") and not target.startswith("//") and "\\" not in target else "/exams"
+
+
+def _auth_page(request: Request, mode: str, next_url: str, error: Optional[str] = None,
+               email: str = "", status: int = 200):
+    return templates.TemplateResponse(request, "auth.html", {
+        "mode": mode, "next": _safe_next(next_url), "error": error, "email": email, "disclaimer": DISCLAIMER,
+    }, status_code=status)
+
+
+def _signed_in(user_id: int, next_url: str) -> RedirectResponse:
+    resp = RedirectResponse(_safe_next(next_url), status_code=303)
+    resp.set_cookie(accounts.SESSION_COOKIE, accounts.new_session(user_id), max_age=accounts.SESSION_TTL_S,
+                    httponly=True, samesite="lax", secure=COOKIE_SECURE)
+    return resp
+
+
+def _require_page_user(request: Request):
+    user = current_user(request)
+    if user is None:
+        return None, RedirectResponse(f"/login?next={request.url.path}", status_code=303)
+    return user, None
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, next: str = "/exams"):
+    return _auth_page(request, "login", next)
+
+
+@app.get("/register", response_class=HTMLResponse)
+def register_page(request: Request, next: str = "/exams"):
+    return _auth_page(request, "register", next)
+
+
+@app.post("/login")
+async def login(request: Request, email: str = Form(""), password: str = Form(""), next: str = Form("/exams")):
+    _check_same_origin(request)
+    keys = _login_keys(request, email)
+    if _login_blocked(keys):
+        return _auth_page(request, "login", next, "Too many failed attempts. Try again in 15 minutes.", email, 429)
+    user_id = accounts.authenticate(email, password)
+    if user_id is None:
+        for k in keys:
+            _failed_logins.setdefault(k, []).append(time.time())
+        return _auth_page(request, "login", next, "Email or password is incorrect.", email, 401)
+    _failed_logins.pop(keys[0], None)
+    return _signed_in(user_id, next)
+
+
+@app.post("/register")
+async def register(request: Request, email: str = Form(""), password: str = Form(""), next: str = Form("/exams")):
+    _check_same_origin(request)
+    try:
+        user_id = accounts.create_user(email, password)
+    except ValueError as e:
+        return _auth_page(request, "register", next, str(e), email, 400)
+    return _signed_in(user_id, next)
+
+
+@app.post("/logout")
+async def logout(request: Request):
+    _check_same_origin(request)
+    accounts.end_session(request.cookies.get(accounts.SESSION_COOKIE))
+    resp = RedirectResponse("/", status_code=303)
+    resp.delete_cookie(accounts.SESSION_COOKIE)
+    return resp
+
+
+@app.get("/exams", response_class=HTMLResponse)
+def exams_page(request: Request, error: str = ""):
+    user, redirect = _require_page_user(request)
+    if redirect:
+        return redirect
+    return templates.TemplateResponse(request, "exams.html", {
+        "summary": longitudinal.summarize(accounts.list_exams(user["id"])),
+        "site_labels": dict(longitudinal.SITES), "user": user, "error": error, "disclaimer": DISCLAIMER,
+    })
+
+
+@app.get("/api/exams")
+def api_exams(request: Request) -> JSONResponse:
+    user = current_user(request)
+    if user is None:
+        raise HTTPException(401, "Sign in required.")
+    return JSONResponse(longitudinal.summarize(accounts.list_exams(user["id"])))
+
+
+@app.get("/exams/export.csv")
+def exams_csv(request: Request):
+    user, redirect = _require_page_user(request)
+    if redirect:
+        return redirect
+    rows = longitudinal.summarize(accounts.list_exams(user["id"]))["rows"]
+    buf = io.StringIO()
+    if rows:
+        writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+    return Response(buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": 'attachment; filename="asculto_exams.csv"'})
+
+
+@app.post("/exams/{exam_id}/delete")
+async def delete_exam(request: Request, exam_id: int):
+    _check_same_origin(request)
+    user, redirect = _require_page_user(request)
+    if redirect:
+        return redirect
+    accounts.delete_exam(user["id"], exam_id)
+    return RedirectResponse("/exams", status_code=303)
+
+
+@app.post("/account/delete")
+async def delete_account(request: Request, password: str = Form("")):
+    _check_same_origin(request)
+    user, redirect = _require_page_user(request)
+    if redirect:
+        return redirect
+    if accounts.authenticate(user["email"], password) != user["id"]:
+        return RedirectResponse("/exams?error=password", status_code=303)
+    accounts.delete_user(user["id"])
+    resp = RedirectResponse("/", status_code=303)
+    resp.delete_cookie(accounts.SESSION_COOKIE)
+    return resp

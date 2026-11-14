@@ -137,6 +137,27 @@
       <label class="chk"><input type="checkbox" name="ai_narrative" value="true" checked>
         Include personalized AI narrative + recommendations (medical / diet / environment)</label>
 
+      <fieldset class="save-exam">
+        <legend>Exam history</legend>
+        {% set u = current_user(request) %}
+        {% if u %}
+        <label class="chk"><input type="checkbox" name="save_exam" value="true" checked> Save to my exam history</label>
+        <div class="row">
+          <label class="inline">Chest site
+            <select name="site">{% for k, l in exam_sites %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+          <label class="inline">Recorded at <input type="datetime-local" name="recorded_at" id="recorded-at"></label>
+        </div>
+        <label class="inline">Note (optional; avoid names or other identifying details)
+          <input type="text" name="note" maxlength="500" placeholder="e.g. after exercise, sitting"></label>
+        <script>(function () {
+          var el = document.getElementById("recorded-at"); if (!el) return;
+          var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+          el.value = d.toISOString().slice(0, 16);
+        })();</script>
+        {% else %}
+        <p class="hint"><a href="/login?next=/">Sign in</a> to save exams and compare them on the same day and over time.</p>
+        {% endif %}
+      </fieldset>
       <button type="submit" class="primary">Analyze</button>
     </div>
   </div>

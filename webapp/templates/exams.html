@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}My exams — Asculto{% endblock %}
+{% block content %}
+{% set s = summary %}
+<section class="report-head">
+  <h1>My exams</h1>
+  <span class="muted">{{ user.email }}</span>
+  <span class="report-actions no-print">
+    <a class="btn small" href="/">New exam</a>
+    {% if s.n_exams %}<a class="btn small" href="/exams/export.csv">Download CSV</a>
+    <a class="btn small" href="/api/exams" download="asculto_exams.json">Download JSON</a>{% endif %}
+    <button class="btn small" onclick="window.print()">Print</button>
+  </span>
+</section>
+{% if error == 'password' %}<div class="card warn" role="alert">Password incorrect; the account was not deleted.</div>{% endif %}
+
+<section class="card">
+  <div class="exam-metrics">
+    <div class="metric"><div class="metric-label">Exams</div><div class="metric-value">{{ s.n_exams }}</div></div>
+    <div class="metric"><div class="metric-label">Recording days</div><div class="metric-value">{{ s.n_days }}</div></div>
+    <div class="metric"><div class="metric-label">Consistency score</div>
+      <div class="metric-value">{{ s.consistency.score ~ '/100' if s.consistency else '—' }}</div>
+      <div class="hint">{{ 'from ' ~ s.consistency.repeat_days ~ ' day(s) with repeat exams' if s.consistency else 'needs 2+ exams on one day' }}</div></div>
+    <div class="metric"><div class="metric-label">Passed quality checks</div>
+      <div class="metric-value">{{ '%.0f%%' | format(100 * s.quality_share) if s.quality_share is not none else '—' }}</div></div>
+  </div>
+  <h2>Summary</h2>
+  <ul class="narrative">{% for line in s.narrative %}<li>{{ line }}</li>{% endfor %}</ul>
+  <p class="hint">Consistency score: for each day with repeat exams and each screening model, half comes from how often
+     the repeats agree on normal/abnormal and half from how little the probability of an abnormal result varies
+     (a spread of ±{{ 0.25 }} or more scores 0). It measures how repeatable the model's output is, not health.</p>
+</section>
+
+{% if s.n_exams %}
+<section class="card">
+  <h2>Over time</h2>
+  <p class="hint">Dots are daily averages; vertical lines show the lowest and highest exam that day; dashed lines are
+     7-day averages. Hover a dot for details.</p>
+  <h3>Probability of an abnormal result (screening models)</h3>
+  <div class="chart-wrap"><canvas id="chart-screens" aria-label="Daily probability of an abnormal result" role="img"></canvas></div>
+  <div class="legend" id="legend-screens"></div>
+  <h3>Heart and breathing rate estimates</h3>
+  <div class="chart-wrap"><canvas id="chart-rates" aria-label="Daily heart and breathing rate estimates" role="img"></canvas></div>
+  <div class="legend" id="legend-rates"></div>
+  <div class="chart-tip" id="chart-tip" hidden></div>
+</section>
+
+<section class="card">
+  <h2>Same day</h2>
+  <p class="hint">Repeat recordings on one day show how much a single exam can be trusted: agreement is the share of
+     exams giving the most common result; ± is the standard deviation across that day's exams.</p>
+  <div class="table-scroll"><table class="exam-table">
+    <caption class="sr-only">Per-day summary of repeat exams</caption>
+    <thead><tr><th scope="col">Date</th><th scope="col">Exams</th>
+      <th scope="col">Heart screen P(abnormal)</th><th scope="col">Heart agreement</th>
+      <th scope="col">Lung screen P(abnormal)</th><th scope="col">Lung agreement</th>
+      <th scope="col">Heart type</th><th scope="col">Lung type</th>
+      <th scope="col">Heart rate</th><th scope="col">Breathing rate</th><th scope="col">Quality OK</th></tr></thead>
+    <tbody>
+    {% for d in s.days | reverse %}
+      {% set hs, ls = d.screens.get('heart_binary'), d.screens.get('lung_binary') %}
+      {% set ht, lt = d.types.get('heart_types'), d.types.get('lung_types') %}
+      {% set hr, br = d.rates.get('heart_rate'), d.rates.get('breathing_rate') %}
+      <tr><th scope="row">{{ d.date }}</th><td>{{ d.n }}</td>
+        <td>{{ '%.2f ± %.2f' | format(hs.mean, hs.sd) if hs else '—' }}</td>
+        <td>{{ '%s %.0f%%' | format(hs.agreement.mode, 100 * hs.agreement.share) if hs and hs.agreement else '—' }}</td>
+        <td>{{ '%.2f ± %.2f' | format(ls.mean, ls.sd) if ls else '—' }}</td>
+        <td>{{ '%s %.0f%%' | format(ls.agreement.mode, 100 * ls.agreement.share) if ls and ls.agreement else '—' }}</td>
+        <td>{{ '%s %.0f%%' | format(ht.mode, 100 * ht.share) if ht else '—' }}</td>
+        <td>{{ '%s %.0f%%' | format(lt.mode, 100 * lt.share) if lt else '—' }}</td>
+        <td>{{ '%.0f ± %.0f' | format(hr.mean, hr.sd) if hr else '—' }}</td>
+        <td>{{ '%.0f ± %.0f' | format(br.mean, br.sd) if br else '—' }}</td>
+        <td>{{ '%.0f%%' | format(100 * d.quality_share) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<section class="card">
+  <h2>All exams</h2>
+  <div class="table-scroll"><table class="exam-table">
+    <caption class="sr-only">Every saved exam, newest first</caption>
+    <thead><tr><th scope="col">Recorded</th><th scope="col">Site</th><th scope="col">File</th><th scope="col">Result</th>
+      <th scope="col">Heart P(abn.)</th><th scope="col">Lung P(abn.)</th><th scope="col">Heart type</th>
+      <th scope="col">Lung type</th><th scope="col">HR</th><th scope="col">Note</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+    {% for r in s.rows | reverse %}
+      <tr><th scope="row">{{ r.date }} {{ r.time }}</th><td>{{ site_labels.get(r.site, r.site) if r.site else '—' }}</td>
+        <td>{{ r.filename }}</td>
+        <td>{{ {'abnormal-flag': 'flagged', 'reference-flag': 'reference flag', 'no-flag': 'no flag'}.get(r.verdict, '—') }}{{ '' if r.quality_ok else ' · low quality' }}</td>
+        <td>{{ '%.2f' | format(r.heart_binary_p_abnormal) if r.heart_binary_p_abnormal is not none else '—' }}</td>
+        <td>{{ '%.2f' | format(r.lung_binary_p_abnormal) if r.lung_binary_p_abnormal is not none else '—' }}</td>
+        <td>{{ r.heart_types_pred or '—' }}</td><td>{{ r.lung_types_pred or '—' }}</td>
+        <td>{{ '%.0f' | format(r.heart_rate) if r.heart_rate is not none else '—' }}</td>
+        <td>{{ r.note }}</td>
+        <td><form method="post" action="/exams/{{ r.id }}/delete" onsubmit="return confirm('Delete this exam?')">
+          <button class="btn small" type="submit">Delete</button></form></td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
+<section class="card no-print">
+  <h2>Account</h2>
+  <form method="post" action="/account/delete" class="row"
+        onsubmit="return confirm('Delete your account and every saved exam? This cannot be undone.')">
+    <label class="inline">Confirm password <input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="btn small" type="submit">Delete account and all exams</button>
+  </form>
+</section>
+<script id="exam-data" type="application/json">{{ s.trends | tojson }}</script>
+{% endblock %}
+{% block scripts %}<script src="/static/exams.js"></script>{% endblock %}

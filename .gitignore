@@ -40,3 +40,6 @@ backend.hcl
 
 # Node
 node_modules/
+
+# Local accounts database
+/var/
