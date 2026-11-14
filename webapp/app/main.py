@@ -10,6 +10,7 @@ import io
 import os
 import sys
 import tempfile
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Optional
@@ -445,6 +446,24 @@ def _save_exam(user: dict, rep: dict, site: str, recorded_at: str, note: str) ->
         (note or "").strip()[:MAX_NOTE], rep.get("filename", ""), longitudinal.exam_from_report(rep))
 
 
+LOGIN_WINDOW_S = 15 * 60
+LOGIN_MAX_FAILS = {"email": 10, "ip": 50}
+_failed_logins: dict = {}
+
+
+def _login_keys(request: Request, email: str) -> List[str]:
+    return [f"email:{accounts.normalize_email(email)}", f"ip:{request.client.host if request.client else ''}"]
+
+
+def _login_blocked(keys: List[str]) -> bool:
+    now = time.time()
+    for k in keys:
+        _failed_logins[k] = [t for t in _failed_logins.get(k, []) if now - t < LOGIN_WINDOW_S]
+        if len(_failed_logins[k]) >= LOGIN_MAX_FAILS[k.split(":", 1)[0]]:
+            return True
+    return False
+
+
 def _check_same_origin(request: Request) -> None:
     """Reject cross-site form posts (login CSRF, forced logout/deletion)."""
     src = request.headers.get("origin") or request.headers.get("referer")
@@ -490,9 +509,15 @@ def register_page(request: Request, next: str = "/exams"):
 @app.post("/login")
 async def login(request: Request, email: str = Form(""), password: str = Form(""), next: str = Form("/exams")):
     _check_same_origin(request)
+    keys = _login_keys(request, email)
+    if _login_blocked(keys):
+        return _auth_page(request, "login", next, "Too many failed attempts. Try again in 15 minutes.", email, 429)
     user_id = accounts.authenticate(email, password)
     if user_id is None:
+        for k in keys:
+            _failed_logins.setdefault(k, []).append(time.time())
         return _auth_page(request, "login", next, "Email or password is incorrect.", email, 401)
+    _failed_logins.pop(keys[0], None)
     return _signed_in(user_id, next)
 
 

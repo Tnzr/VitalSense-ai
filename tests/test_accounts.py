@@ -168,3 +168,13 @@ def test_cross_site_posts_rejected(client):
     r = client.post("/register", data={"email": "x@example.com", "password": "correct horse"},
                     headers={"origin": "http://testserver"}, follow_redirects=False)
     assert r.status_code == 303
+
+
+def test_login_throttled_after_repeated_failures(client, monkeypatch):
+    monkeypatch.setattr(main, "_failed_logins", {})
+    _register(client, "throttle@example.com")
+    client.cookies.clear()
+    for _ in range(main.LOGIN_MAX_FAILS["email"]):
+        assert client.post("/login", data={"email": "throttle@example.com", "password": "bad-pass!"}).status_code == 401
+    r = client.post("/login", data={"email": "throttle@example.com", "password": "correct horse"})
+    assert r.status_code == 429
