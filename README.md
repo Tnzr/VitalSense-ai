@@ -250,3 +250,7 @@ automatically by `setup.sh`; not committed to this repository.
 
 Educational and research prototype only. Not a medical device. Models are
 trained on manikin recordings and must not be used for clinical decision-making.
+
+## License
+
+Source code is released under the MIT License (see LICENSE). Datasets, pretrained third-party models and their documentation keep their own licenses. Dataset-specific terms and attribution are documented in [docs/DatasetLicenses.md](docs/DatasetLicenses.md).
