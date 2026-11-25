@@ -16,8 +16,6 @@ from pathlib import Path
 
 import modal
 
-REPO_FILES = ("ml", "webapp", "deploy")
-
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("libsndfile1", "ffmpeg")
