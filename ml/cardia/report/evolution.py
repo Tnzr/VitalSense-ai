@@ -65,10 +65,6 @@ def _probs_on(model, loader, device) -> dict:
     return out
 
 
-def _load_waveforms(paths: List[str], cfg: Config) -> List[torch.Tensor]:
-    return [preprocess(p, cfg) for p in paths]
-
-
 def run_evolution(cfg: Config, milestones: List[int], sample_id: str | None, out_dir: str) -> dict:
     device = torch.device(cfg.resolve_device())
     torch.manual_seed(cfg.seed)
