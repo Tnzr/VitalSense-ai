@@ -7,7 +7,6 @@ import { Hono } from "hono";
 import { AwsClient } from "aws4fetch";
 import {
   authenticate,
-  entitlementFor,
   incrementUsage,
   withinQuota,
   type Env as AuthEnv,
@@ -168,6 +167,3 @@ export default {
     }
   },
 };
-
-// keep the helper referenced for future per-key entitlement lookups
-export const _entitlementFor = entitlementFor;
